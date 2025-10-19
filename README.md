@@ -303,6 +303,6 @@ Pour toute question ou problème :
 ---
 
 Développé par l'équipe Eventime Gabon 
-<img width="300" height="92" alt="2ts4fbscLGcLd58lFyUX8ADznjSUtnFSwpfekwxb" src="https://github.com/user-attachments/assets/9bf6f4b3-4d71-4dfd-9644-6b72a0a45ca6" />
+<br><img width="300" height="92" alt="2ts4fbscLGcLd58lFyUX8ADznjSUtnFSwpfekwxb" src="https://github.com/user-attachments/assets/9bf6f4b3-4d71-4dfd-9644-6b72a0a45ca6" />
 
 
