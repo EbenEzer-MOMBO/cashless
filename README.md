@@ -1,5 +1,7 @@
 # 💳 Cashless - Système de Paiement Sans Espèces
 
+<img width="1919" height="902" alt="image" src="https://github.com/user-attachments/assets/5ec25b43-46c1-4105-9c6e-b50d8641a36f" />
+
 Application web et mobile de gestion de paiement cashless pour événements. Cette solution permet de gérer les transactions, les recharges et les ventes de produits lors d'événements, avec un système de rôles complet (Administrateur, Agents, Participants).
 
 ![Version](https://img.shields.io/badge/version-0.0.0-blue.svg)
@@ -296,8 +298,11 @@ Privé - Tous droits réservés
 
 Pour toute question ou problème :
 - 📧 Email : support@cashless.com
-- 🌐 Site web : https://lovable.dev/projects/f2878804-043f-45e6-a2a3-69723265ac14
+- 🌐 Site web : https://cashless.ga/
 
 ---
 
 Développé par l'équipe Eventime Gabon 
+<img width="300" height="92" alt="2ts4fbscLGcLd58lFyUX8ADznjSUtnFSwpfekwxb" src="https://github.com/user-attachments/assets/9bf6f4b3-4d71-4dfd-9644-6b72a0a45ca6" />
+
+
