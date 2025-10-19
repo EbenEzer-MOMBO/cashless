@@ -1,0 +1,2 @@
+-- Add missing SITE_URL to edge function environment if needed
+-- This is just to ensure the environment is properly configured

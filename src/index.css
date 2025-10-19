@@ -1,0 +1,386 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Cashless Design System - Modern Mobile Money Platform by Eventime
+All colors MUST be HSL. Gabonese Mobile Money Theme
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 15% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 15%;
+
+    /* Cashless Dark Slate Blue - new brand color #414294 */
+    --primary: 239 56% 41%;
+    --primary-foreground: 0 0% 98%;
+    --primary-light: 239 56% 51%;
+    --primary-dark: 239 56% 31%;
+
+    /* Rebecca Purple accent */
+    --secondary: 264 53% 43%;
+    --secondary-foreground: 0 0% 98%;
+
+    /* Elegant grays */
+    --muted: 220 13% 97%;
+    --muted-foreground: 220 9% 46%;
+
+    /* Success and accent colors */
+    --accent: 239 56% 92%;
+    --accent-foreground: 239 56% 23%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 239 56% 41%;
+
+    /* Modern shadows with brand colors */
+    --shadow-sm: 0 1px 2px 0 hsl(239 56% 41% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(239 56% 41% / 0.1), 0 2px 4px -2px hsl(239 56% 41% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(239 56% 41% / 0.1), 0 4px 6px -4px hsl(239 56% 41% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(239 56% 41% / 0.1), 0 10px 10px -5px hsl(239 56% 41% / 0.04);
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(239 56% 41%), hsl(239 56% 51%));
+    --gradient-secondary: linear-gradient(135deg, hsl(264 53% 43%), hsl(264 53% 53%));
+    --gradient-subtle: linear-gradient(135deg, hsl(220 13% 97%), hsl(220 13% 100%));
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark theme adapted to new violet/blue theme */
+    --background: 220 15% 8%;
+    --foreground: 0 0% 95%;
+
+    --card: 220 15% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 220 15% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Dark Slate Blue for dark mode */
+    --primary: 239 56% 45%;
+    --primary-foreground: 0 0% 95%;
+    --primary-light: 239 56% 55%;
+    --primary-dark: 239 56% 35%;
+
+    /* Rebecca Purple for dark mode */
+    --secondary: 264 53% 47%;
+    --secondary-foreground: 0 0% 95%;
+
+    /* Dark mode grays */
+    --muted: 220 15% 15%;
+    --muted-foreground: 220 9% 65%;
+
+    /* Success and accent colors for dark */
+    --accent: 239 56% 15%;
+    --accent-foreground: 239 56% 85%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 95%;
+
+    --border: 220 15% 20%;
+    --input: 220 15% 15%;
+    --ring: 239 56% 45%;
+
+    /* Sidebar colors for dark mode */
+    --sidebar-background: 220 15% 6%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 239 56% 45%;
+    --sidebar-primary-foreground: 0 0% 95%;
+    --sidebar-accent: 220 15% 12%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 220 15% 18%;
+    --sidebar-ring: 239 56% 45%;
+
+    /* Update shadows for dark mode */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.15);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.2), 0 2px 4px -2px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.2), 0 4px 6px -4px hsl(0 0% 0% / 0.1);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.25), 0 10px 10px -5px hsl(0 0% 0% / 0.1);
+
+    /* Update gradients for dark mode */
+    --gradient-primary: linear-gradient(135deg, hsl(239 56% 35%), hsl(239 56% 45%));
+    --gradient-secondary: linear-gradient(135deg, hsl(264 53% 37%), hsl(264 53% 47%));
+    --gradient-subtle: linear-gradient(135deg, hsl(220 15% 8%), hsl(220 15% 12%));
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', 'Poppins', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Modern Mobile Money Platform Components */
+  .card-banking {
+    @apply bg-card border border-border rounded-xl p-6;
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-banking:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+  }
+
+  .btn-banking {
+    @apply inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold;
+    @apply transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+    @apply transform hover:scale-105 active:scale-95;
+  }
+
+  .btn-primary {
+    @apply btn-banking text-primary-foreground;
+    background: var(--gradient-primary);
+    box-shadow: 0 4px 14px 0 hsl(239 56% 41% / 0.39);
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 6px 20px 0 hsl(239 56% 41% / 0.5);
+  }
+
+  .btn-secondary {
+    @apply btn-banking text-secondary-foreground;
+    background: var(--gradient-secondary);
+    box-shadow: 0 4px 14px 0 hsl(264 53% 43% / 0.39);
+  }
+
+  .btn-secondary:hover {
+    box-shadow: 0 6px 20px 0 hsl(264 53% 43% / 0.5);
+  }
+
+  .input-banking {
+    @apply flex h-12 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium;
+    @apply ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium;
+    @apply placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2;
+    @apply focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply transition-all duration-200 hover:border-primary/50 focus:border-primary;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Premium glass effect */
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* Success states */
+  .success-glow {
+    box-shadow: 0 4px 14px 0 hsl(239 56% 41% / 0.4);
+  }
+
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fade-in 0.5s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slide-up {
+    from { 
+      opacity: 0; 
+      transform: translateY(20px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+
+  /* Mobile-first responsive utilities */
+  .mobile-padding {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+
+  .mobile-text {
+    @apply text-sm sm:text-base;
+  }
+
+  .mobile-title {
+    @apply text-lg sm:text-xl lg:text-2xl;
+  }
+
+  .mobile-card {
+    @apply p-4 sm:p-6;
+  }
+
+  /* Safe area handling for mobile */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Touch-friendly button sizing */
+  .btn-touch {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Custom Scrollbars - Cashless Design */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.6) hsl(var(--muted));
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.6), hsl(var(--primary) / 0.8));
+    border-radius: 4px;
+    transition: all 0.3s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.8), hsl(var(--primary)));
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: hsl(var(--muted));
+  }
+
+  /* Enhanced Card Banking with better hover */
+  .card-banking {
+    @apply bg-card border border-border rounded-xl p-6;
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(10px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card-banking:hover {
+    box-shadow: var(--shadow-xl);
+    transform: translateY(-4px) scale(1.02);
+    border-color: hsl(var(--primary) / 0.3);
+  }
+
+  /* Enhanced Interactive Elements */
+  .interactive-element {
+    @apply transition-all duration-300 ease-out;
+    @apply hover:scale-105 active:scale-95;
+    @apply focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+  }
+
+  /* Micro-interactions */
+  .bounce-subtle {
+    animation: bounce-subtle 0.6s ease-out;
+  }
+
+  @keyframes bounce-subtle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  /* Loading pulse effect */
+  .loading-pulse {
+    animation: loading-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes loading-pulse {
+    0%, 100% { 
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    50% { 
+      opacity: 1;
+      transform: scale(1.05);
+    }
+  }
+
+  /* Enhanced Skeleton shimmer */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted-foreground) / 0.1) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Glass morphism effects */
+  .glass-morphism {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 
+      0 8px 32px 0 rgba(31, 38, 135, 0.37),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  }
+
+  /* Enhanced focus states */
+  .focus-enhanced:focus-visible {
+    outline: none;
+    box-shadow: 
+      0 0 0 2px hsl(var(--background)),
+      0 0 0 4px hsl(var(--primary)),
+      0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  /* Smooth state transitions */
+  .state-transition {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Mobile-optimized touch targets */
+  .touch-target {
+    @apply min-h-[48px] min-w-[48px] p-3;
+    touch-action: manipulation;
+  }
+}
