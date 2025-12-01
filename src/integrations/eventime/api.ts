@@ -141,14 +141,41 @@ class EventimeAPI {
 
       console.log('📡 Response status:', response.status, response.statusText);
 
+      // Lire la réponse comme texte d'abord pour pouvoir la parser correctement
+      const responseText = await response.text();
+      console.log('📥 Raw response:', responseText);
+
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ HTTP error response:', errorText);
-        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        // Essayer de parser la réponse comme JSON
+        let errorMessage = 'Email ou mot de passe incorrect';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+          console.error('❌ HTTP error response (parsed):', errorData);
+        } catch (parseError) {
+          console.error('❌ HTTP error response (raw):', responseText);
+          errorMessage = responseText || `Erreur HTTP ${response.status}`;
+        }
+        
+        return {
+          status: false,
+          error: errorMessage,
+          message: errorMessage
+        };
       }
 
-      const data = await response.json();
-      console.log('✅ Login response:', data);
+      // Parser la réponse JSON
+      let data: EventimeAdminAuth;
+      try {
+        data = JSON.parse(responseText);
+        console.log('✅ Login response (parsed):', data);
+      } catch (parseError) {
+        console.error('❌ Failed to parse response as JSON:', parseError);
+        return {
+          status: false,
+          error: 'Réponse invalide de l\'API',
+        };
+      }
       
       return data;
     } catch (error) {
