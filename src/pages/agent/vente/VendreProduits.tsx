@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { Minus, Plus, ShoppingCart, Scan, User, CreditCard, Package, ArrowLeft, CheckCircle, Wallet } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useAgentProducts } from "@/hooks/useAgentProducts";
+import { useAgentProducts, AgentProduct } from "@/hooks/useAgentProducts";
 import { useTransactionHandler } from "@/hooks/useTransactionHandler";
 import { toast } from "sonner";
 import { useNavigate, useLocation } from "react-router-dom";
 import QRCodeScanner from "@/components/shared/QRCodeScanner";
+import { db } from "@/integrations/firebase/config";
+import { doc, getDoc } from "firebase/firestore";
+import { COLLECTIONS } from "@/integrations/firebase/types";
 
 interface CartItem {
   productId: number;
@@ -16,6 +19,14 @@ interface CartItem {
   price: number;
   quantity: number;
   maxStock: number;
+}
+
+interface Participant {
+  id: string;
+  name: string;
+  email?: string;
+  balance: number;
+  qr_code?: string;
 }
 
 const VendreProduits = () => {
@@ -30,7 +41,7 @@ const VendreProduits = () => {
     }
     return [];
   });
-  const [participant, setParticipant] = useState<any>(() => {
+  const [participant, setParticipant] = useState<Participant | null>(() => {
     // Récupérer le participant depuis le state de navigation
     return location.state?.participant || null;
   });
@@ -41,7 +52,7 @@ const VendreProduits = () => {
   const { products, loading: productsLoading } = useAgentProducts();
   const { processTransaction, getParticipantByQR, loading: handlerLoading } = useTransactionHandler();
 
-  const addToCart = (product: any) => {
+  const addToCart = (product: AgentProduct) => {
     setCart(prev => {
       const existing = prev.find(item => item.productId === product.id);
       if (existing) {
@@ -142,16 +153,50 @@ const VendreProduits = () => {
       return;
     }
 
+    // Calculer le montant total
+    const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    // Vérifier que le participant a suffisamment de solde
+    if (participant.balance < totalAmount) {
+      toast.error(`Solde insuffisant. Solde disponible: ${participant.balance.toLocaleString()} XAF, Total requis: ${totalAmount.toLocaleString()} XAF`);
+      return;
+    }
+
     setProcessing(true);
 
     try {
+      console.log('🛒 Starting checkout process:', {
+        participantId: participant.id,
+        participantName: participant.name,
+        currentBalance: participant.balance,
+        totalAmount: totalAmount,
+        itemsCount: cart.length,
+        items: cart.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          price: item.price,
+          subtotal: item.price * item.quantity
+        }))
+      });
+
       // Process each item in cart as a separate transaction
+      const processedTransactions = [];
       for (const item of cart) {
+        const itemTotal = item.price * item.quantity;
+        
+        console.log(`📦 Processing item: ${item.productName}`, {
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+          total: itemTotal
+        });
+
         const transactionRequest = {
           type: 'vente' as const,
           participantId: participant.id,
           productId: item.productId,
-          amount: item.price * item.quantity,
+          amount: itemTotal,
           quantity: item.quantity
         };
 
@@ -160,16 +205,59 @@ const VendreProduits = () => {
         if (!result) {
           throw new Error(`Erreur lors de la vente de ${item.productName}`);
         }
+        
+        processedTransactions.push({
+          productName: item.productName,
+          quantity: item.quantity,
+          amount: itemTotal,
+          transactionId: result.id
+        });
+        
+        console.log(`✅ Item processed: ${item.productName}`, {
+          transactionId: result.id,
+          newBalance: result.newBalance
+        });
       }
 
-      // Success - clear cart and participant
+      console.log('✅ All items processed successfully:', {
+        totalTransactions: processedTransactions.length,
+        totalAmount: totalAmount,
+        transactions: processedTransactions
+      });
+
+      // Recharger les données du participant depuis Firestore pour obtenir le nouveau solde
+      try {
+        const participantRef = doc(db, COLLECTIONS.PARTICIPANTS, participant.id);
+        const participantDoc = await getDoc(participantRef);
+        
+        if (participantDoc.exists()) {
+          const updatedData = participantDoc.data();
+          setParticipant({
+            ...participant,
+            balance: updatedData.balance || participant.balance
+          });
+          console.log('✅ Participant data refreshed with new balance:', {
+            oldBalance: participant.balance,
+            newBalance: updatedData.balance
+          });
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not refresh participant data:', error);
+      }
+
+      // Success - clear cart but keep participant for potential new sale
       setCart([]);
-      setParticipant(null);
       setQrCode("");
-      toast.success("Vente effectuée avec succès!");
+      
+      toast.success(`Vente effectuée avec succès ! ${totalAmount.toLocaleString()} XAF débités.`);
+      
+      // Optionnel: rediriger vers le dashboard après un court délai
+      setTimeout(() => {
+        navigate('/agent/vente/dashboard');
+      }, 2000);
 
     } catch (error) {
-      console.error('Checkout error:', error);
+      console.error('❌ Checkout error:', error);
       toast.error(error instanceof Error ? error.message : "Erreur lors de la vente");
     } finally {
       setProcessing(false);

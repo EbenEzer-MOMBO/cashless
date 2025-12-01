@@ -62,7 +62,7 @@ const TransactionsSection = () => {
     <div className="space-y-4 sm:space-y-6">{/* Removed duplicate header */}
 
       {/* Statistiques du jour */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6 mobile-padding">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mobile-padding">
         <Card>
           <CardContent className="mobile-card">
             <div className="flex items-center gap-2">
@@ -92,6 +92,17 @@ const TransactionsSection = () => {
           <div className="min-w-0">
             <p className="text-xs sm:text-sm text-muted-foreground">Recharges du jour</p>
             <p className="text-xl sm:text-2xl font-bold truncate">{stats.todayRecharges.toLocaleString()} XAF</p>
+          </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="mobile-card">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs sm:text-sm text-muted-foreground">Remboursements du jour</p>
+            <p className="text-xl sm:text-2xl font-bold truncate">{stats.todayRefunds?.toLocaleString() || '0'} XAF</p>
           </div>
             </div>
           </CardContent>

@@ -10,10 +10,12 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { useAdminProducts, AdminProductFormData, AdminProduct } from "@/hooks/useAdminProducts";
 import { useEvents } from "@/hooks/useEvents";
+import { useToast } from "@/hooks/use-toast";
 
 const ProductsSection = () => {
   const { products, loading, createProduct, updateProduct, deleteProduct } = useAdminProducts();
   const { events } = useEvents();
+  const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<AdminProduct | null>(null);
 
@@ -27,11 +29,53 @@ const ProductsSection = () => {
   });
 
   const onSubmit = async (data: AdminProductFormData) => {
+    // Validate form data
+    if (!data.name || !data.name.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Le nom du produit est requis",
+      });
+      return;
+    }
+    if (!data.price || Number(data.price) <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Le prix doit être supérieur à 0",
+      });
+      return;
+    }
+    if (data.stock === undefined || data.stock === null || Number(data.stock) < 0) {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Le stock doit être un nombre positif ou zéro",
+      });
+      return;
+    }
+    if (!data.eventId) {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "L'événement est requis",
+      });
+      return;
+    }
+
     try {
       if (editingProduct) {
         await updateProduct(editingProduct.id, data);
+        toast({
+          title: "Succès",
+          description: "Produit modifié avec succès",
+        });
       } else {
         await createProduct(data);
+        toast({
+          title: "Succès",
+          description: "Produit créé avec succès",
+        });
       }
 
       setIsDialogOpen(false);
@@ -39,6 +83,12 @@ const ProductsSection = () => {
       form.reset();
     } catch (error) {
       console.error('Error saving product:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Impossible de sauvegarder le produit';
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: errorMessage,
+      });
     }
   };
 
@@ -51,11 +101,21 @@ const ProductsSection = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (productId: number) => {
+  const handleDelete = async (productId: string) => {
     try {
       await deleteProduct(productId);
+      toast({
+        title: "Succès",
+        description: "Produit supprimé avec succès",
+      });
     } catch (error) {
       console.error('Error deleting product:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Impossible de supprimer le produit';
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: errorMessage,
+      });
     }
   };
 
@@ -108,6 +168,7 @@ const ProductsSection = () => {
                           placeholder="Nom du produit"
                           {...field}
                           className="btn-touch"
+                          required
                         />
                       </FormControl>
                       <FormMessage />
@@ -126,6 +187,8 @@ const ProductsSection = () => {
                           placeholder="Prix en XAF"
                           {...field}
                           className="btn-touch"
+                          required
+                          min="1"
                         />
                       </FormControl>
                       <FormMessage />
@@ -144,6 +207,8 @@ const ProductsSection = () => {
                           placeholder="Quantité en stock"
                           {...field}
                           className="btn-touch"
+                          required
+                          min="0"
                         />
                       </FormControl>
                       <FormMessage />

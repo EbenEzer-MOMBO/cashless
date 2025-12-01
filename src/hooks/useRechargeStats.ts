@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/integrations/firebase/config';
+import { 
+  collection, 
+  query, 
+  where,
+  getDocs,
+  onSnapshot
+} from 'firebase/firestore';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import { useAgentAuth } from '@/contexts/AgentAuthContext';
 
 export interface RechargeStats {
@@ -40,60 +48,62 @@ export const useRechargeStats = () => {
     try {
       setLoading(true);
 
-      // Get today's date in UTC
+      // Get today's date
       const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      const todayISO = today.toISOString();
+      today.setHours(0, 0, 0, 0);
 
-      // Get all recharge transactions for this agent
-      const { data: rechargeData, error: rechargeError } = await supabase
-        .from('transactions')
-        .select('amount, created_at')
-        .eq('agent_id', user.agentId)
-        .eq('type', 'recharge')
-        .eq('status', 'completed');
+      const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
 
-      if (rechargeError) throw rechargeError;
-
-      // Get all refund transactions for this agent
-      const { data: refundData, error: refundError } = await supabase
-        .from('transactions')
-        .select('amount, created_at')
-        .eq('agent_id', user.agentId)
-        .eq('type', 'refund')
-        .eq('status', 'completed');
-
-      if (refundError) throw refundError;
-
-      // Get today's recharge transactions
-      const { data: todayRechargeData, error: todayRechargeError } = await supabase
-        .from('transactions')
-        .select('amount, created_at')
-        .eq('agent_id', user.agentId)
-        .eq('type', 'recharge')
-        .eq('status', 'completed')
-        .gte('created_at', todayISO);
-
-      if (todayRechargeError) throw todayRechargeError;
-
-      // Get today's refund transactions
-      const { data: todayRefundData, error: todayRefundError } = await supabase
-        .from('transactions')
-        .select('amount, created_at')
-        .eq('agent_id', user.agentId)
-        .eq('type', 'refund')
-        .eq('status', 'completed')
-        .gte('created_at', todayISO);
-
-      if (todayRefundError) throw todayRefundError;
+      // Get all recharge and refund transactions in parallel
+      const [rechargeSnapshot, refundSnapshot] = await Promise.all([
+        getDocs(query(
+          transactionsRef,
+          where('agent_id', '==', user.agentId),
+          where('type', '==', 'recharge'),
+          where('status', '==', 'completed')
+        )),
+        getDocs(query(
+          transactionsRef,
+          where('agent_id', '==', user.agentId),
+          where('type', '==', 'refund'),
+          where('status', '==', 'completed')
+        ))
+      ]);
 
       // Calculate statistics
-      const totalRecharged = (rechargeData || []).reduce((sum, t) => sum + Number(t.amount), 0);
-      const totalRefunded = (refundData || []).reduce((sum, t) => sum + Number(t.amount), 0);
-      const todayRecharged = (todayRechargeData || []).reduce((sum, t) => sum + Number(t.amount), 0);
-      const todayRefunded = (todayRefundData || []).reduce((sum, t) => sum + Number(t.amount), 0);
-      const rechargeCount = (rechargeData || []).length;
-      const refundCount = (refundData || []).length;
+      let totalRecharged = 0;
+      let todayRecharged = 0;
+      let rechargeCount = 0;
+
+      rechargeSnapshot.docs.forEach(docSnapshot => {
+        const t = docSnapshot.data();
+        const amount = Number(t.amount);
+        const createdAt = t.created_at?.toDate?.() || new Date(t.created_at);
+        
+        totalRecharged += amount;
+        rechargeCount++;
+        
+        if (createdAt >= today) {
+          todayRecharged += amount;
+        }
+      });
+
+      let totalRefunded = 0;
+      let todayRefunded = 0;
+      let refundCount = 0;
+
+      refundSnapshot.docs.forEach(docSnapshot => {
+        const t = docSnapshot.data();
+        const amount = Number(t.amount);
+        const createdAt = t.created_at?.toDate?.() || new Date(t.created_at);
+        
+        totalRefunded += amount;
+        refundCount++;
+        
+        if (createdAt >= today) {
+          todayRefunded += amount;
+        }
+      });
 
       setStats({
         totalRecharged,
@@ -120,33 +130,27 @@ export const useRechargeStats = () => {
 
   useEffect(() => {
     loadStats();
-  }, [user?.id]);
+  }, [user?.agentId]);
 
   // Subscribe to real-time changes
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.agentId) return;
 
-    const channel = supabase
-      .channel('recharge-stats-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'transactions',
-          filter: `agent_id=eq.${user.agentId}`
-        },
-        () => {
-          console.log('New recharge/refund transaction, reloading stats...');
-          loadStats();
-        }
-      )
-      .subscribe();
+    const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+    const q = query(
+      transactionsRef,
+      where('agent_id', '==', user.agentId)
+    );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
+    const unsubscribe = onSnapshot(q, () => {
+      console.log('New recharge/refund transaction, reloading stats...');
+      loadStats();
+    }, (err) => {
+      console.error('Error in recharge stats subscription:', err);
+    });
+
+    return () => unsubscribe();
+  }, [user?.agentId]);
 
   return {
     stats,

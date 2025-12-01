@@ -30,29 +30,36 @@ const ParticipantLogin = () => {
     setError('');
 
     try {
+      console.log('🔐 Attempting login with ticket code:', code.trim());
       const success = await login(code.trim());
       
       if (success) {
+        console.log('✅ Login successful');
         toast({
           title: "Connexion réussie",
           description: "Bienvenue dans votre portefeuille numérique !",
         });
         navigate('/participant/dashboard');
       } else {
-        setError('Code de ticket invalide ou expiré');
+        console.error('❌ Login failed');
+        // L'erreur sera affichée via le toast et le message d'erreur
+        setError('Code de ticket invalide, expiré ou non trouvé. Vérifiez votre code et réessayez.');
         toast({
           variant: "destructive",
           title: "Erreur de connexion",
-          description: "Code de ticket invalide ou expiré",
+          description: "Code de ticket invalide, expiré ou non trouvé. Vérifiez votre code et réessayez.",
         });
       }
     } catch (error) {
-      console.error('Login error:', error);
-      setError('Erreur de connexion. Veuillez réessayer.');
+      console.error('❌ Login error:', error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Erreur de connexion. Veuillez réessayer.';
+      setError(errorMessage);
       toast({
         variant: "destructive",
         title: "Erreur de connexion",
-        description: "Une erreur est survenue. Veuillez réessayer.",
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);

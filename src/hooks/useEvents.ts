@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { eventimeAPI } from '@/integrations/eventime/api';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 export interface Event {
-  id: number;
+  id: string;
   name: string;
   description: string;
   location: string;
@@ -15,6 +15,7 @@ export interface Event {
   productsCount: number;
   createdAt?: string;
   updatedAt?: string;
+  externalId?: number; // ID from Eventime API
 }
 
 export interface EventFormData {
@@ -46,25 +47,26 @@ export const useEvents = () => {
 
   // Helper function to map API event to local Event type
   const mapApiEventToEvent = (apiEvent: any): Event => ({
-    id: apiEvent.event_id,
+    id: apiEvent.event_id.toString(),
     name: apiEvent.title,
-    description: apiEvent.description,
-    location: apiEvent.location,
+    description: apiEvent.description || '',
+    location: apiEvent.location || '',
     startDate: apiEvent.start_date,
     endDate: apiEvent.end_date,
     status: calculateEventStatus(apiEvent),
-    participantsCount: 0, // Placeholder - would need separate API call
-    agentsCount: 0, // Placeholder - would need separate API call  
-    productsCount: 0, // Placeholder - would need separate API call
+    participantsCount: 0, // Will be calculated from Firestore
+    agentsCount: 0, // Will be calculated from Firestore
+    productsCount: 0, // Will be calculated from Firestore
     createdAt: apiEvent.created_at,
-    updatedAt: apiEvent.updated_at
+    updatedAt: apiEvent.updated_at,
+    externalId: apiEvent.event_id
   });
 
-  // Fonction pour charger les événements depuis l'API externe avec gestion d'erreur améliorée
+  // Fonction pour charger les événements depuis l'API Eventime
   const loadEvents = async () => {
     if (!user?.id) {
       setLoading(false);
-      setEvents([]); // Clear events when no user
+      setEvents([]);
       return;
     }
 
@@ -77,68 +79,54 @@ export const useEvents = () => {
         setTimeout(() => reject(new Error('Timeout: La requête a pris trop de temps')), 10000)
       );
 
-      const requestPromise = supabase.functions.invoke('events-list', {
-        body: { organizerId: user.id }
-      });
+      const requestPromise = eventimeAPI.getEvents(user.id);
 
-      const { data, error } = await Promise.race([requestPromise, timeoutPromise]) as any;
+      const result = await Promise.race([requestPromise, timeoutPromise]) as any;
 
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw new Error(`Erreur API: ${error.message || 'Erreur inconnue'}`);
-      }
-
-      // Handle different response formats gracefully
-      if (!data) {
-        console.warn('No data received from events API');
-        setEvents([]);
-        return;
-      }
-
-      if (data.status === false) {
-        const errorMsg = data.error || 'Erreur lors de la récupération des événements';
+      if (!result.status) {
+        const errorMsg = result.error || 'Erreur lors de la récupération des événements';
         console.error('API returned error status:', errorMsg);
         throw new Error(errorMsg);
       }
 
-      if (data.status === true && Array.isArray(data.events)) {
+      if (result.status === true && Array.isArray(result.events)) {
         try {
-          const mappedEvents = data.events.map(mapApiEventToEvent);
+          const mappedEvents = result.events.map(mapApiEventToEvent);
           setEvents(mappedEvents);
         } catch (mappingError) {
           console.error('Error mapping events:', mappingError);
-          setEvents([]); // Set empty array instead of throwing
+          setEvents([]);
           setError('Erreur lors du traitement des données d\'événements');
         }
       } else {
-        console.warn('Unexpected data format:', data);
+        console.warn('Unexpected data format:', result);
         setEvents([]);
       }
     } catch (err) {
       console.error('Error loading events:', err);
       const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement des événements';
       setError(errorMessage);
-      setEvents([]); // Always set empty array on error
+      setEvents([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fonction pour créer un événement (non supportée pour l'API externe)
+  // Fonction pour créer un événement (non supportée - doit être fait via Eventime)
   const createEvent = async (eventData: EventFormData): Promise<Event | null> => {
-    setError('La création d\'événements n\'est pas encore supportée avec l\'API externe');
+    setError('La création d\'événements doit être faite via la plateforme Eventime (https://eventime.ga/)');
     return null;
   };
 
-  // Fonction pour mettre à jour un événement (non supportée pour l'API externe)
-  const updateEvent = async (id: number, eventData: EventFormData): Promise<boolean> => {
-    setError('La modification d\'événements n\'est pas encore supportée avec l\'API externe');
+  // Fonction pour mettre à jour un événement (non supportée - doit être fait via Eventime)
+  const updateEvent = async (id: string, eventData: EventFormData): Promise<boolean> => {
+    setError('La modification d\'événements doit être faite via la plateforme Eventime (https://eventime.ga/)');
     return false;
   };
 
-  // Fonction pour supprimer un événement (non supportée pour l'API externe)
-  const deleteEvent = async (id: number): Promise<boolean> => {
-    setError('La suppression d\'événements n\'est pas encore supportée avec l\'API externe');
+  // Fonction pour supprimer un événement (non supportée - doit être fait via Eventime)
+  const deleteEvent = async (id: string): Promise<boolean> => {
+    setError('La suppression d\'événements doit être faite via la plateforme Eventime (https://eventime.ga/)');
     return false;
   };
 

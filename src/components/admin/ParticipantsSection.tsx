@@ -1,23 +1,72 @@
 import { useState } from "react";
-import { Users, Wallet, Calendar, Filter, Download } from "lucide-react";
+import { Users, Wallet, Calendar, Filter, Download, Search, QrCode } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useParticipants, Participant } from "@/hooks/useParticipants";
 import { ParticipantDetailDialog } from "./ParticipantDetailDialog";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 const ParticipantsSection = () => {
-  const { participants, loading, getFilteredParticipants, getStats, getEvents, refetch } = useParticipants();
+  const { participants, loading, getFilteredParticipants, getStats, getEvents, refetch, searchParticipantByTicket } = useParticipants();
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+  const [ticketCode, setTicketCode] = useState("");
+  const [searching, setSearching] = useState(false);
+  const { toast } = useToast();
 
   const handleViewDetails = (participant: Participant) => {
     setSelectedParticipant(participant);
     setDetailDialogOpen(true);
+  };
+
+  const handleSearchByTicket = async () => {
+    if (!ticketCode.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Veuillez entrer un code de ticket",
+      });
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const participant = await searchParticipantByTicket(ticketCode.trim());
+      if (participant) {
+        toast({
+          title: "Succès",
+          description: `Participant trouvé : ${participant.name}`,
+        });
+        setTicketCode("");
+        setSearchDialogOpen(false);
+        // Afficher les détails du participant trouvé
+        setSelectedParticipant(participant);
+        setDetailDialogOpen(true);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Erreur",
+          description: "Participant non trouvé avec ce code de ticket",
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Erreur lors de la recherche du participant",
+      });
+    } finally {
+      setSearching(false);
+    }
   };
 
   const filteredParticipants = getFilteredParticipants(eventFilter, statusFilter);
@@ -44,6 +93,57 @@ const ParticipantsSection = () => {
           <p className="text-muted-foreground mobile-text">Gérez les participants de la plateforme</p>
         </div>
         <div className="flex gap-2">
+          <Dialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="btn-touch text-xs sm:text-sm">
+                <Search className="h-4 w-4 mr-1 sm:mr-2" />
+                Rechercher par ticket
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5" />
+                  Rechercher un participant par ticket
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Code du ticket (QR code)</label>
+                  <Input
+                    placeholder="ticket_xxxxx ou scannez le QR code"
+                    value={ticketCode}
+                    onChange={(e) => setTicketCode(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !searching) {
+                        handleSearchByTicket();
+                      }
+                    }}
+                    disabled={searching}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Entrez le code du ticket ou scannez le QR code du participant
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearchDialogOpen(false);
+                      setTicketCode("");
+                    }}
+                    disabled={searching}
+                  >
+                    Annuler
+                  </Button>
+                  <Button onClick={handleSearchByTicket} disabled={searching || !ticketCode.trim()}>
+                    {searching && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Rechercher
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" onClick={refetch} className="btn-touch text-xs sm:text-sm">
             Synchroniser
           </Button>

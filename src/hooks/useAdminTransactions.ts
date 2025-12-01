@@ -1,7 +1,18 @@
-
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db, auth } from '@/integrations/firebase/config';
+import { 
+  collection, 
+  query, 
+  getDocs,
+  doc,
+  getDoc,
+  orderBy,
+  where,
+  onSnapshot
+} from 'firebase/firestore';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { useEvents } from '@/hooks/useEvents';
 
 export interface AdminTransaction {
   id: string;
@@ -19,6 +30,7 @@ export const useAdminTransactions = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAdminAuth();
+  const { events } = useEvents();
 
   const loadTransactions = async () => {
     if (!user) {
@@ -27,75 +39,114 @@ export const useAdminTransactions = () => {
       return;
     }
 
+    // Check Firebase Auth session
+    if (!auth.currentUser) {
+      console.warn('⚠️ No Firebase Auth session for loading transactions');
+      setError('Erreur d\'authentification. Veuillez vous reconnecter.');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      console.log('Loading admin transactions with separate queries...');
+      console.log('🔄 Loading admin transactions...');
+      console.log('📅 Events for organizer:', events.length);
 
-      // First, get all transactions
-      const { data: transactionsData, error: transactionsError } = await supabase
-        .from('transactions')
-        .select('id, type, amount, status, created_at, participant_id, agent_id, product_id')
-        .order('created_at', { ascending: false });
-
-      if (transactionsError) {
-        console.error('Transactions query error:', transactionsError);
-        throw transactionsError;
+      // Get event IDs from organizer's events
+      const eventIds = events.map(e => e.id);
+      
+      if (eventIds.length === 0) {
+        console.log('⚠️ No events found for organizer');
+        setTransactions([]);
+        setLoading(false);
+        return;
       }
 
-      if (!transactionsData || transactionsData.length === 0) {
-        console.log('No transactions found');
+      console.log('🔍 Filtering transactions for events:', eventIds);
+
+      const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+      
+      // Load all transactions and filter by event_id client-side
+      // (Firestore doesn't support 'in' queries with orderBy easily)
+      const q = query(transactionsRef, orderBy('created_at', 'desc'));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log('⚠️ No transactions found in database');
         setTransactions([]);
         return;
       }
 
-      console.log('Raw transactions data:', transactionsData);
+      // Filter transactions by event_id (only events created by this organizer)
+      const filteredDocs = querySnapshot.docs.filter(docSnapshot => {
+        const t = docSnapshot.data();
+        return eventIds.includes(t.event_id);
+      });
 
-      // Get unique IDs for separate queries
-      const agentIds = [...new Set(transactionsData.map(t => t.agent_id).filter(Boolean))];
-      const participantIds = [...new Set(transactionsData.map(t => t.participant_id).filter(Boolean))];
-      const productIds = [...new Set(transactionsData.map(t => t.product_id).filter(Boolean))];
+      console.log(`✅ Found ${filteredDocs.length} transactions for organizer's events (out of ${querySnapshot.docs.length} total)`);
 
-      // Fetch agents, participants, and products in parallel
-      const [agentsResponse, participantsResponse, productsResponse] = await Promise.all([
-        agentIds.length > 0 ? supabase.from('agents').select('id, name').in('id', agentIds) : { data: [], error: null },
-        participantIds.length > 0 ? supabase.from('participants').select('id, name').in('id', participantIds) : { data: [], error: null },
-        productIds.length > 0 ? supabase.from('products').select('id, name').in('id', productIds) : { data: [], error: null }
+      if (filteredDocs.length === 0) {
+        console.log('⚠️ No transactions found for organizer\'s events');
+        setTransactions([]);
+        return;
+      }
+
+      // Collect all unique IDs for batch fetching
+      const agentIds = new Set<string>();
+      const participantIds = new Set<string>();
+      const productIds = new Set<string>();
+
+      filteredDocs.forEach(docSnapshot => {
+        const t = docSnapshot.data();
+        if (t.agent_id) agentIds.add(t.agent_id);
+        if (t.participant_id) participantIds.add(t.participant_id);
+        if (t.product_id) productIds.add(t.product_id);
+      });
+
+      // Fetch related data
+      const agentsMap: Record<string, string> = {};
+      const participantsMap: Record<string, string> = {};
+      const productsMap: Record<string, string> = {};
+
+      await Promise.all([
+        ...Array.from(agentIds).map(async (id) => {
+          const docSnap = await getDoc(doc(db, COLLECTIONS.AGENTS, id));
+          if (docSnap.exists()) {
+            agentsMap[id] = docSnap.data().name;
+          }
+        }),
+        ...Array.from(participantIds).map(async (id) => {
+          const docSnap = await getDoc(doc(db, COLLECTIONS.PARTICIPANTS, id));
+          if (docSnap.exists()) {
+            participantsMap[id] = docSnap.data().name;
+          }
+        }),
+        ...Array.from(productIds).map(async (id) => {
+          const docSnap = await getDoc(doc(db, COLLECTIONS.PRODUCTS, id));
+          if (docSnap.exists()) {
+            productsMap[id] = docSnap.data().name;
+          }
+        })
       ]);
 
-      // Log any errors in fetching related data
-      if (agentsResponse.error) {
-        console.error('Error fetching agents:', agentsResponse.error);
-      }
-      if (participantsResponse.error) {
-        console.error('Error fetching participants:', participantsResponse.error);
-      }
-      if (productsResponse.error) {
-        console.error('Error fetching products:', productsResponse.error);
-      }
-
-      console.log('Participants found:', participantsResponse.data?.length, 'out of', participantIds.length);
-      console.log('Agents found:', agentsResponse.data?.length, 'out of', agentIds.length);
-
-      // Create lookup maps
-      const agentsMap = new Map((agentsResponse.data || []).map(a => [a.id, a.name]));
-      const participantsMap = new Map((participantsResponse.data || []).map(p => [p.id, p.name]));
-      const productsMap = new Map((productsResponse.data || []).map(p => [p.id, p.name]));
-
       // Format transactions with joined data
-      const formattedTransactions: AdminTransaction[] = transactionsData.map((t: any) => ({
-        id: t.id,
-        type: t.type,
-        amount: Number(t.amount),
-        participantName: participantsMap.get(t.participant_id) || `Participant #${t.participant_id}`,
-        productName: t.product_id ? (productsMap.get(t.product_id) || `Produit #${t.product_id}`) : undefined,
-        agentName: agentsMap.get(t.agent_id) || `Agent #${t.agent_id}`,
-        status: t.status,
-        createdAt: t.created_at
-      }));
+      const formattedTransactions: AdminTransaction[] = filteredDocs.map(docSnapshot => {
+        const t = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          type: t.type,
+          amount: Number(t.amount),
+          participantName: participantsMap[t.participant_id] || `Participant #${t.participant_id}`,
+          productName: t.product_id ? (productsMap[t.product_id] || `Produit #${t.product_id}`) : undefined,
+          agentName: agentsMap[t.agent_id] || `Agent #${t.agent_id}`,
+          status: t.status,
+          createdAt: t.created_at?.toDate?.()?.toISOString() || t.created_at
+        };
+      });
 
-      console.log('Formatted transactions:', formattedTransactions);
+      console.log(`✅ Formatted ${formattedTransactions.length} transactions for organizer`);
       setTransactions(formattedTransactions);
     } catch (err) {
       console.error('Error loading admin transactions:', err);
@@ -107,33 +158,27 @@ export const useAdminTransactions = () => {
   };
 
   useEffect(() => {
-    loadTransactions();
-  }, [user?.id]);
+    if (events.length > 0) {
+      loadTransactions();
+    }
+  }, [user?.id, events.length]);
 
   // Subscribe to real-time changes
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || events.length === 0) return;
 
-    const channel = supabase
-      .channel('admin-transactions-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'transactions'
-        },
-        () => {
-          console.log('New transaction detected, reloading...');
-          loadTransactions();
-        }
-      )
-      .subscribe();
+    const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+    const q = query(transactionsRef, orderBy('created_at', 'desc'));
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
+    const unsubscribe = onSnapshot(q, () => {
+      console.log('🔄 New transaction detected, reloading...');
+      loadTransactions();
+    }, (err) => {
+      console.error('❌ Error in transactions subscription:', err);
+    });
+
+    return () => unsubscribe();
+  }, [user?.id, events.length]);
 
   const getFilteredTransactions = (searchTerm: string, typeFilter: string, statusFilter: string) => {
     return transactions.filter(transaction => {
@@ -172,18 +217,38 @@ export const useAdminTransactions = () => {
       return sum;
     }, 0);
 
+    const todayRefunds = todayTransactions.reduce((sum, t) => {
+      if (t.type === 'refund') return sum + t.amount;
+      return sum;
+    }, 0);
+
+    const totalRecharges = transactions.reduce((sum, t) => {
+      if (t.type === 'recharge') return sum + t.amount;
+      return sum;
+    }, 0);
+
+    const totalRefunds = transactions.reduce((sum, t) => {
+      if (t.type === 'refund') return sum + t.amount;
+      return sum;
+    }, 0);
+
     const totalTransactions = transactions.length;
     const rechargeCount = transactions.filter(t => t.type === 'recharge').length;
+    const refundCount = transactions.filter(t => t.type === 'refund').length;
     const ventesCount = transactions.filter(t => t.type === 'vente').length;
 
     return {
       totalAmount,
       totalTransactions,
       rechargeCount,
+      refundCount,
       ventesCount,
       todayTransactions: todayTransactions.length,
       todayRevenue,
-      todayRecharges
+      todayRecharges,
+      todayRefunds,
+      totalRecharges,
+      totalRefunds
     };
   };
 

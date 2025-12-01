@@ -19,17 +19,21 @@ export function StatCard({
   className = ""
 }: StatCardProps) {
   return (
-    <Card className={`card-banking ${className}`}>
-      <CardContent className="mobile-card">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-            <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${iconColor}`} />
+    <Card className={`border-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-95 bg-gradient-to-br from-card to-muted/30 ${className}`}>
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center gap-3 sm:gap-4">
+          {/* Modern Icon with gradient background */}
+          <div className="relative shrink-0">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl blur-sm"></div>
+            <div className={`relative p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 shadow-sm`}>
+              <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${iconColor}`} />
+            </div>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs sm:text-sm text-muted-foreground truncate">{title}</p>
-            <p className="text-xl sm:text-2xl font-bold">{value}</p>
+            <p className="text-[11px] sm:text-xs text-muted-foreground font-medium truncate mb-1">{title}</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground leading-tight">{value}</p>
             {subtitle && (
-              <p className="text-xs text-muted-foreground mt-1 truncate">{subtitle}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1.5 truncate">{subtitle}</p>
             )}
           </div>
         </div>

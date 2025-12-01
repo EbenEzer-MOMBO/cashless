@@ -1,19 +1,32 @@
-
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/integrations/firebase/config';
+import { 
+  collection, 
+  query, 
+  where,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  doc,
+  getDoc,
+  orderBy,
+  onSnapshot,
+  Timestamp
+} from 'firebase/firestore';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 
 export interface ProductAssignment {
-  id: number;
-  productId: number;
-  agentId: number;
-  eventId: number;
+  id: string;
+  productId: string;
+  agentId: string;
+  eventId: string;
   productName: string;
   agentName: string;
   eventName: string;
   createdAt: string;
 }
 
-export const useProductAssignments = (eventId?: number) => {
+export const useProductAssignments = (eventId?: string) => {
   const [assignments, setAssignments] = useState<ProductAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,44 +36,66 @@ export const useProductAssignments = (eventId?: number) => {
       setLoading(true);
       setError(null);
 
-      let query = supabase
-        .from('product_assignments')
-        .select('id, product_id, agent_id, event_id, created_at');
+      const assignmentsRef = collection(db, COLLECTIONS.PRODUCT_ASSIGNMENTS);
+      let q = query(assignmentsRef, orderBy('created_at', 'desc'));
 
       if (eventId) {
-        query = query.eq('event_id', eventId);
+        q = query(assignmentsRef, where('event_id', '==', eventId), orderBy('created_at', 'desc'));
       }
 
-      const { data: assignmentsData, error } = await query.order('created_at', { ascending: false });
+      const querySnapshot = await getDocs(q);
 
-      if (error) throw error;
+      // Collect all unique IDs for batch fetching
+      const productIds = new Set<string>();
+      const agentIds = new Set<string>();
+      const eventIds = new Set<string>();
 
-      // Get related data separately
-      const productIds = [...new Set((assignmentsData || []).map(a => a.product_id))];
-      const agentIds = [...new Set((assignmentsData || []).map(a => a.agent_id))];
-      const eventIds = [...new Set((assignmentsData || []).map(a => a.event_id))];
+      querySnapshot.docs.forEach(docSnapshot => {
+        const a = docSnapshot.data();
+        if (a.product_id) productIds.add(a.product_id);
+        if (a.agent_id) agentIds.add(a.agent_id);
+        if (a.event_id) eventIds.add(a.event_id);
+      });
 
-      const [productsRes, agentsRes, eventsRes] = await Promise.all([
-        productIds.length > 0 ? supabase.from('products').select('id, name').in('id', productIds) : { data: [] },
-        agentIds.length > 0 ? supabase.from('agents').select('id, name').in('id', agentIds) : { data: [] },
-        eventIds.length > 0 ? supabase.from('events').select('id, name').in('id', eventIds) : { data: [] }
+      // Fetch related data
+      const productsMap: Record<string, string> = {};
+      const agentsMap: Record<string, string> = {};
+      const eventsMap: Record<string, string> = {};
+
+      await Promise.all([
+        ...Array.from(productIds).map(async (id) => {
+          const docSnap = await getDoc(doc(db, COLLECTIONS.PRODUCTS, id));
+          if (docSnap.exists()) {
+            productsMap[id] = docSnap.data().name;
+          }
+        }),
+        ...Array.from(agentIds).map(async (id) => {
+          const docSnap = await getDoc(doc(db, COLLECTIONS.AGENTS, id));
+          if (docSnap.exists()) {
+            agentsMap[id] = docSnap.data().name;
+          }
+        }),
+        ...Array.from(eventIds).map(async (id) => {
+          const docSnap = await getDoc(doc(db, COLLECTIONS.EVENTS, id));
+          if (docSnap.exists()) {
+            eventsMap[id] = docSnap.data().name;
+          }
+        })
       ]);
 
-      // Create lookup maps
-      const productsMap = (productsRes.data || []).reduce((acc, p) => { acc[p.id] = p.name; return acc; }, {} as Record<number, string>);
-      const agentsMap = (agentsRes.data || []).reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {} as Record<number, string>);
-      const eventsMap = (eventsRes.data || []).reduce((acc, e) => { acc[e.id] = e.name; return acc; }, {} as Record<number, string>);
-
-      const formattedAssignments: ProductAssignment[] = (assignmentsData || []).map(a => ({
-        id: a.id,
-        productId: a.product_id,
-        agentId: a.agent_id,
-        eventId: a.event_id,
-        productName: productsMap[a.product_id] || 'Produit inconnu',
-        agentName: agentsMap[a.agent_id] || 'Agent',
-        eventName: eventsMap[a.event_id] || 'Événement inconnu',
-        createdAt: a.created_at
-      }));
+      const formattedAssignments: ProductAssignment[] = querySnapshot.docs.map(docSnapshot => {
+        const a = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          productId: a.product_id,
+          agentId: a.agent_id,
+          eventId: a.event_id,
+          productName: productsMap[a.product_id] || 'Produit inconnu',
+          agentName: agentsMap[a.agent_id] || 'Agent',
+          eventName: eventsMap[a.event_id] || 'Événement inconnu',
+          createdAt: a.created_at?.toDate?.()?.toISOString() || a.created_at
+        };
+      });
 
       setAssignments(formattedAssignments);
     } catch (err) {
@@ -72,17 +107,20 @@ export const useProductAssignments = (eventId?: number) => {
     }
   };
 
-  const assignProduct = async (productId: number, agentId: number) => {
+  const assignProduct = async (productId: string, agentId: string) => {
     try {
-      const { error } = await supabase
-        .from('product_assignments')
-        .insert({
-          product_id: productId,
-          agent_id: agentId,
-          event_id: eventId || 0 // Will be set by trigger
-        });
+      // Get event_id from product
+      const productDoc = await getDoc(doc(db, COLLECTIONS.PRODUCTS, productId));
+      const productEventId = productDoc.exists() ? productDoc.data().event_id : eventId;
+
+      await addDoc(collection(db, COLLECTIONS.PRODUCT_ASSIGNMENTS), {
+        product_id: productId,
+        agent_id: agentId,
+        event_id: productEventId,
+        created_at: Timestamp.now(),
+        updated_at: Timestamp.now()
+      });
       
-      if (error) throw error;
       await loadAssignments();
     } catch (err) {
       console.error('Error assigning product:', err);
@@ -90,15 +128,23 @@ export const useProductAssignments = (eventId?: number) => {
     }
   };
 
-  const unassignProduct = async (productId: number, agentId: number) => {
+  const unassignProduct = async (productId: string, agentId: string) => {
     try {
-      const { error } = await supabase
-        .from('product_assignments')
-        .delete()
-        .eq('product_id', productId)
-        .eq('agent_id', agentId);
+      // Find the assignment document
+      const assignmentsRef = collection(db, COLLECTIONS.PRODUCT_ASSIGNMENTS);
+      const q = query(
+        assignmentsRef,
+        where('product_id', '==', productId),
+        where('agent_id', '==', agentId)
+      );
       
-      if (error) throw error;
+      const querySnapshot = await getDocs(q);
+      
+      // Delete all matching assignments
+      for (const docSnapshot of querySnapshot.docs) {
+        await deleteDoc(doc(db, COLLECTIONS.PRODUCT_ASSIGNMENTS, docSnapshot.id));
+      }
+      
       await loadAssignments();
     } catch (err) {
       console.error('Error unassigning product:', err);
@@ -106,7 +152,7 @@ export const useProductAssignments = (eventId?: number) => {
     }
   };
 
-  const getAssignedProducts = (agentId: number): number[] => {
+  const getAssignedProducts = (agentId: string): string[] => {
     return assignments
       .filter(a => a.agentId === agentId)
       .map(a => a.productId);
@@ -118,25 +164,16 @@ export const useProductAssignments = (eventId?: number) => {
 
   // Subscribe to real-time changes
   useEffect(() => {
-    const channel = supabase
-      .channel('product-assignments-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'product_assignments'
-        },
-        () => {
-          console.log('Product assignments changed, reloading...');
-          loadAssignments();
-        }
-      )
-      .subscribe();
+    const assignmentsRef = collection(db, COLLECTIONS.PRODUCT_ASSIGNMENTS);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const unsubscribe = onSnapshot(assignmentsRef, () => {
+      console.log('Product assignments changed, reloading...');
+      loadAssignments();
+    }, (err) => {
+      console.error('Error in assignments subscription:', err);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   return {

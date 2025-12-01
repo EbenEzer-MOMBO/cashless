@@ -1,6 +1,16 @@
-
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db, auth } from '@/integrations/firebase/config';
+import { 
+  collection, 
+  query, 
+  where,
+  getDocs,
+  doc,
+  getDoc,
+  orderBy,
+  onSnapshot
+} from 'firebase/firestore';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import { useAgentAuth } from '@/contexts/AgentAuthContext';
 
 export interface Transaction {
@@ -9,6 +19,7 @@ export interface Transaction {
   amount: number;
   participantName: string;
   productName?: string;
+  quantity?: number;
   agentName: string;
   status: string;
   createdAt: string;
@@ -27,65 +38,138 @@ export const useTransactions = (agentFilter?: string) => {
       return;
     }
 
+    // Check Firebase Auth session
+    if (!auth.currentUser) {
+      console.warn('⚠️ No Firebase Auth session for loading transactions');
+      setError('Erreur d\'authentification. Veuillez vous reconnecter.');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      let query = supabase
-        .from('transactions')
-        .select('id, type, amount, status, created_at, participant_id, product_id, agent_id')
-        .eq('event_id', user.eventId)
-        .order('created_at', { ascending: false });
+      console.log('🔄 Loading transactions...', {
+        eventId: user.eventId,
+        agentId: user.agentId,
+        agentFilter
+      });
 
-      // If we're filtering by current agent
-      if (agentFilter === 'current') {
-        const { data: agent } = await supabase
-          .from('agents')
-          .select('id')
-          .eq('user_id', user.id)
-          .single();
+      const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+      
+      // Load all transactions for the event (avoid index requirement)
+      // We'll filter and sort client-side
+      const q = query(
+        transactionsRef,
+        where('event_id', '==', user.eventId)
+      );
 
-        if (agent) {
-          query = query.eq('agent_id', agent.id);
-        }
+      const querySnapshot = await getDocs(q);
+      
+      console.log(`✅ Found ${querySnapshot.docs.length} transactions for event`);
+      
+      // Filter by agent if needed (client-side)
+      let filteredDocs = querySnapshot.docs;
+      if (agentFilter === 'current' && user.agentId) {
+        filteredDocs = querySnapshot.docs.filter(doc => {
+          const data = doc.data();
+          return data.agent_id === user.agentId;
+        });
+        console.log(`🔍 Filtered to ${filteredDocs.length} transactions for agent:`, user.agentId);
       }
+      
+      // Sort by created_at descending (client-side)
+      filteredDocs.sort((a, b) => {
+        const aDate = a.data().created_at?.toDate?.() || new Date(a.data().created_at || 0);
+        const bDate = b.data().created_at?.toDate?.() || new Date(b.data().created_at || 0);
+        return bDate.getTime() - aDate.getTime();
+      });
+      
+      // Limit to recent transactions for dashboard
+      const recentDocs = agentFilter === 'current' 
+        ? filteredDocs // Show all for agent history
+        : filteredDocs.slice(0, 50); // Limit for dashboard
+      
+      // Collect all unique IDs for batch fetching
+      const participantIds = new Set<string>();
+      const productIds = new Set<string>();
+      const agentIds = new Set<string>();
+      
+      recentDocs.forEach(docSnapshot => {
+        const t = docSnapshot.data();
+        if (t.participant_id) participantIds.add(t.participant_id);
+        if (t.product_id) productIds.add(t.product_id);
+        if (t.agent_id) agentIds.add(t.agent_id);
+      });
 
-      const { data: transactionsData, error } = await query;
+      // Fetch related data in parallel (all at once)
+      const participantsMap: Record<string, string> = {};
+      const productsMap: Record<string, string> = {};
+      const agentsMap: Record<string, string> = {};
 
-      if (error) throw error;
-
-      // Fetch related data separately
-      const participantIds = [...new Set(transactionsData?.map(t => t.participant_id))];
-      const productIds = [...new Set(transactionsData?.filter(t => t.product_id).map(t => t.product_id))];
-      const agentIds = [...new Set(transactionsData?.map(t => t.agent_id))];
-
-      // Fetch participants, products, and agents in parallel
-      const [participantsRes, productsRes, agentsRes] = await Promise.all([
-        participantIds.length > 0 ? supabase.from('participants').select('id, name').in('id', participantIds) : { data: [] },
-        productIds.length > 0 ? supabase.from('products').select('id, name').in('id', productIds) : { data: [] },
-        agentIds.length > 0 ? supabase.from('agents').select('id, name').in('id', agentIds) : { data: [] }
+      // Use Promise.allSettled to handle errors gracefully
+      await Promise.allSettled([
+        ...Array.from(participantIds).map(async (id) => {
+          try {
+            const docSnap = await getDoc(doc(db, COLLECTIONS.PARTICIPANTS, id));
+            if (docSnap.exists()) {
+              participantsMap[id] = docSnap.data().name;
+            }
+          } catch (err) {
+            console.warn(`Failed to load participant ${id}:`, err);
+          }
+        }),
+        ...Array.from(productIds).map(async (id) => {
+          try {
+            const docSnap = await getDoc(doc(db, COLLECTIONS.PRODUCTS, id));
+            if (docSnap.exists()) {
+              productsMap[id] = docSnap.data().name;
+            }
+          } catch (err) {
+            console.warn(`Failed to load product ${id}:`, err);
+          }
+        }),
+        ...Array.from(agentIds).map(async (id) => {
+          try {
+            const docSnap = await getDoc(doc(db, COLLECTIONS.AGENTS, id));
+            if (docSnap.exists()) {
+              agentsMap[id] = docSnap.data().name;
+            }
+          } catch (err) {
+            console.warn(`Failed to load agent ${id}:`, err);
+          }
+        })
       ]);
 
-      // Create lookup maps
-      const participantsMap = (participantsRes.data || []).reduce((acc, p) => { acc[p.id] = p.name; return acc; }, {} as Record<number, string>);
-      const productsMap = (productsRes.data || []).reduce((acc, p) => { acc[p.id] = p.name; return acc; }, {} as Record<number, string>);
-      const agentsMap = (agentsRes.data || []).reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {} as Record<number, string>);
+      const formattedTransactions: Transaction[] = recentDocs.map(docSnapshot => {
+        const t = docSnapshot.data();
+        // Use product_name from transaction if available, otherwise fetch from productsMap
+        const productName = t.product_name || (t.product_id ? productsMap[t.product_id] : undefined);
+        
+        return {
+          id: docSnapshot.id,
+          type: t.type,
+          amount: Number(t.amount),
+          participantName: participantsMap[t.participant_id] || t.participant_name || 'Participant inconnu',
+          productName: productName,
+          quantity: t.quantity ? Number(t.quantity) : undefined,
+          agentName: agentsMap[t.agent_id] || 'Agent',
+          status: t.status,
+          createdAt: t.created_at?.toDate?.()?.toISOString() || t.created_at
+        };
+      });
 
-      const formattedTransactions: Transaction[] = (transactionsData || []).map((t: any) => ({
-        id: t.id,
-        type: t.type,
-        amount: Number(t.amount),
-        participantName: participantsMap[t.participant_id] || 'Participant inconnu',
-        productName: t.product_id ? productsMap[t.product_id] : undefined,
-        agentName: agentsMap[t.agent_id] || 'Agent',
-        status: t.status,
-        createdAt: t.created_at
-      }));
-
+      console.log(`✅ Formatted ${formattedTransactions.length} transactions`);
       setTransactions(formattedTransactions);
     } catch (err) {
-      console.error('Error loading transactions:', err);
-      setError(err instanceof Error ? err.message : 'Erreur lors du chargement des transactions');
+      console.error('❌ Error loading transactions:', err);
+      const error = err as { code?: string; message?: string };
+      if (error.code === 'permission-denied') {
+        setError('Permission refusée. Vérifiez les règles de sécurité Firestore.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Erreur lors du chargement des transactions');
+      }
       setTransactions([]);
     } finally {
       setLoading(false);
@@ -100,27 +184,22 @@ export const useTransactions = (agentFilter?: string) => {
   useEffect(() => {
     if (!user?.eventId) return;
 
-    const channel = supabase
-      .channel('transactions-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'transactions',
-          filter: `event_id=eq.${user.eventId}`
-        },
-        () => {
-          console.log('New transaction, reloading...');
-          loadTransactions();
-        }
-      )
-      .subscribe();
+    const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+    // Subscribe to all transactions for the event (no orderBy to avoid index requirement)
+    const q = query(
+      transactionsRef,
+      where('event_id', '==', user.eventId)
+    );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.eventId]);
+    const unsubscribe = onSnapshot(q, () => {
+      console.log('🔄 New transaction detected, reloading...');
+      loadTransactions();
+    }, (err) => {
+      console.error('❌ Error in transactions subscription:', err);
+    });
+
+    return () => unsubscribe();
+  }, [user?.eventId, user?.agentId, agentFilter]);
 
   const getFilteredTransactions = (searchTerm: string, typeFilter: string, statusFilter: string) => {
     return transactions.filter(transaction => {

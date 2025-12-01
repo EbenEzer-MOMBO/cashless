@@ -290,18 +290,32 @@ All colors MUST be HSL. Gabonese Mobile Money Theme
     background: hsl(var(--muted));
   }
 
-  /* Enhanced Card Banking with better hover */
+  /* Enhanced Card Banking with better hover - Mobile optimized */
   .card-banking {
-    @apply bg-card border border-border rounded-xl p-6;
+    @apply bg-card border-2 border-border/50 rounded-2xl p-4 sm:p-6;
     box-shadow: var(--shadow-md);
     backdrop-filter: blur(10px);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .card-banking:hover {
     box-shadow: var(--shadow-xl);
-    transform: translateY(-4px) scale(1.02);
+    transform: translateY(-2px);
     border-color: hsl(var(--primary) / 0.3);
+  }
+
+  /* Mobile app-like design - iOS/Android style */
+  @media (max-width: 768px) {
+    .card-banking {
+      @apply rounded-3xl;
+      box-shadow: 0 4px 20px -2px hsl(var(--primary) / 0.1);
+      border-width: 1px;
+    }
+
+    .card-banking:active {
+      transform: scale(0.98);
+      transition: transform 0.1s;
+    }
   }
 
   /* Enhanced Interactive Elements */
@@ -382,5 +396,46 @@ All colors MUST be HSL. Gabonese Mobile Money Theme
   .touch-target {
     @apply min-h-[48px] min-w-[48px] p-3;
     touch-action: manipulation;
+  }
+
+  /* Mobile app-like styles */
+  @media (max-width: 768px) {
+    /* App-like header */
+    header {
+      @apply safe-area-top;
+    }
+
+    /* App-like cards with rounded corners */
+    .card {
+      @apply rounded-3xl;
+    }
+
+    /* App-like buttons */
+    button {
+      @apply rounded-2xl;
+      touch-action: manipulation;
+    }
+
+    /* App-like inputs */
+    input, textarea, select {
+      @apply rounded-2xl;
+    }
+
+    /* Better spacing for mobile */
+    .space-y-4 > * + * {
+      margin-top: 1rem;
+    }
+
+    /* Smooth scrolling on mobile */
+    * {
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  /* Glass effect for mobile */
+  .glass-effect {
+    background: hsl(var(--background) / 0.8);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
   }
 }

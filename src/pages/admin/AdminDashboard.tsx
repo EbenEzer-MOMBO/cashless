@@ -92,61 +92,78 @@ const AdminDashboard = () => {
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen w-full bg-background overflow-hidden">
-        <AdminSidebar 
-          activeSection={activeSection} 
-          onSectionChange={setActiveSection} 
-        />
+      <div className="flex h-screen w-full bg-gradient-to-br from-background via-background to-muted/20 overflow-hidden">
+        {/* Mobile: Sidebar hidden by default, desktop: visible */}
+        <div className="hidden md:block">
+          <AdminSidebar 
+            activeSection={activeSection} 
+            onSectionChange={setActiveSection} 
+          />
+        </div>
         
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Fixed Header */}
-          <header className="h-16 sm:h-20 border-b glass-effect shrink-0 z-10 relative overflow-hidden sticky top-0">
-            {/* Subtle gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-r from-background via-accent/10 to-background opacity-50"></div>
+          {/* Mobile-First Header */}
+          <header className="h-14 sm:h-16 md:h-20 border-b bg-background/80 backdrop-blur-lg shrink-0 z-50 relative overflow-hidden sticky top-0 safe-area-top">
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5"></div>
             
-            <div className="relative flex h-full items-center mobile-padding gap-3 sm:gap-6">
-              <SidebarTrigger className="h-9 w-9 shrink-0 rounded-xl hover:bg-muted/60 hover:scale-105 transition-all duration-200 border border-border/50" />
+            <div className="relative flex h-full items-center px-3 sm:px-4 md:px-6 gap-2 sm:gap-3 md:gap-6">
+              {/* Mobile: Menu button, Desktop: Sidebar trigger */}
+              <div className="md:hidden">
+                <SidebarTrigger className="h-9 w-9 shrink-0 rounded-xl hover:bg-muted/60 active:scale-95 transition-all duration-200 border border-border/50" />
+              </div>
+              <div className="hidden md:block">
+                <SidebarTrigger className="h-9 w-9 shrink-0 rounded-xl hover:bg-muted/60 hover:scale-105 transition-all duration-200 border border-border/50" />
+              </div>
               
-              <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                {/* Contextual Icon with elegant background */}
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl blur-sm"></div>
-                  <div className="relative bg-gradient-to-br from-card to-accent/30 p-2.5 sm:p-3 rounded-xl border border-border/60 shadow-elegant">
+              <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-1 min-w-0">
+                {/* Icon with modern design */}
+                <div className="relative shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-primary/10 rounded-2xl blur-md"></div>
+                  <div className="relative bg-gradient-to-br from-card via-card to-accent/20 p-2 sm:p-2.5 md:p-3 rounded-2xl border border-border/60 shadow-lg shadow-primary/5">
                     {getSectionIcon()}
                   </div>
                 </div>
                 
-                {/* Enhanced Typography */}
+                {/* Typography optimized for mobile */}
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">
+                  <h1 className="text-base sm:text-lg md:text-2xl lg:text-3xl font-bold tracking-tight leading-tight">
                     <span className="bg-gradient-to-r from-foreground via-primary to-foreground bg-clip-text text-transparent">
                       {getSectionTitle()}
                     </span>
                   </h1>
-                  <p className="text-xs sm:text-sm text-muted-foreground truncate mt-0.5 sm:mt-1 font-medium">
+                  <p className="text-[10px] sm:text-xs md:text-sm text-muted-foreground truncate mt-0.5 sm:mt-1 font-medium">
                     {getSectionDescription()}
                   </p>
                 </div>
               </div>
               
-              {/* Theme Toggle */}
-              <div className="flex items-center gap-2">
+              {/* Theme Toggle - Mobile optimized */}
+              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                 <ThemeToggle />
               </div>
             </div>
             
-            {/* Decorative bottom border gradient */}
-            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
+            {/* Decorative bottom border */}
+            <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent"></div>
           </header>
 
-          {/* Scrollable Main content */}
-          <main className="flex-1 overflow-y-auto">
-            <div className="max-w-7xl mx-auto mobile-padding py-4 sm:py-6">
+          {/* Scrollable Main content - Mobile optimized */}
+          <main className="flex-1 overflow-y-auto overscroll-behavior-contain">
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6">
               <div className="animate-fade-in">
                 {renderContent()}
               </div>
             </div>
           </main>
+        </div>
+
+        {/* Mobile Sidebar Overlay */}
+        <div className="md:hidden">
+          <AdminSidebar 
+            activeSection={activeSection} 
+            onSectionChange={setActiveSection} 
+          />
         </div>
       </div>
     </SidebarProvider>

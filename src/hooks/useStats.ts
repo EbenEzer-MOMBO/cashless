@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db, auth } from '@/integrations/firebase/config';
+import { 
+  collection, 
+  query, 
+  where,
+  getDocs
+} from 'firebase/firestore';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 
 export interface DashboardStats {
   totalSales: number;
@@ -15,7 +22,7 @@ export interface RecentActivity {
   time: string;
   action: string;
   user: string;
-  id?: number;
+  id?: string;
 }
 
 export const useStats = () => {
@@ -32,55 +39,74 @@ export const useStats = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fonction pour charger les statistiques depuis la base de données
+  // Fonction pour charger les statistiques depuis Firestore
   const loadStats = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Charger les statistiques générales
-      const { data: salesData } = await supabase
-        .from('transactions')
-        .select('amount')
-        .eq('type', 'vente')
-        .eq('status', 'completed');
+      // Check if user is authenticated
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.warn('⚠️ No authenticated user, cannot load stats');
+        setError('Vous devez être connecté pour voir les statistiques');
+        setLoading(false);
+        return;
+      }
       
-      const { data: balanceData } = await supabase
-        .from('participants')
-        .select('balance');
+      console.log('📊 Loading stats for authenticated user:', currentUser.uid);
       
-      const { data: agentsData } = await supabase
-        .from('agents')
-        .select('active')
-        .eq('active', true);
-      
-      const { data: transactionsData } = await supabase
-        .from('transactions')
-        .select('*');
-      
-      // Calculer les statistiques
-      const totalSales = salesData?.reduce((sum, t) => sum + t.amount, 0) || 0;
-      const totalBalance = balanceData?.reduce((sum, p) => sum + p.balance, 0) || 0;
-      const activeAgents = agentsData?.length || 0;
-      const totalTransactions = transactionsData?.length || 0;
-      
-      // Statistiques du jour (dernières 24h)
+      // Get today's date
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
-      const { data: todayTransactionsData } = await supabase
-        .from('transactions')
-        .select('*')
-        .gte('created_at', today.toISOString());
-      
-      const todayTransactions = todayTransactionsData?.length || 0;
-      const todayRevenue = todayTransactionsData
-        ?.filter(t => t.type === 'vente' && t.status === 'completed')
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
-      const todayRecharges = todayTransactionsData
-        ?.filter(t => t.type === 'recharge' && t.status === 'completed')
-        .reduce((sum, t) => sum + t.amount, 0) || 0;
-      
+
+      // Load sales data
+      const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+      const salesQuery = query(
+        transactionsRef,
+        where('type', '==', 'vente'),
+        where('status', '==', 'completed')
+      );
+      const salesSnapshot = await getDocs(salesQuery);
+      const totalSales = salesSnapshot.docs.reduce((sum, doc) => sum + Number(doc.data().amount), 0);
+
+      // Load participants balance
+      const participantsRef = collection(db, COLLECTIONS.PARTICIPANTS);
+      const participantsSnapshot = await getDocs(participantsRef);
+      const totalBalance = participantsSnapshot.docs.reduce((sum, doc) => sum + Number(doc.data().balance || 0), 0);
+
+      // Load active agents
+      const agentsRef = collection(db, COLLECTIONS.AGENTS);
+      const activeAgentsQuery = query(agentsRef, where('active', '==', true));
+      const activeAgentsSnapshot = await getDocs(activeAgentsQuery);
+      const activeAgents = activeAgentsSnapshot.size;
+
+      // Load all transactions
+      const allTransactionsSnapshot = await getDocs(transactionsRef);
+      const totalTransactions = allTransactionsSnapshot.size;
+
+      // Calculate today's stats
+      let todayTransactions = 0;
+      let todayRevenue = 0;
+      let todayRecharges = 0;
+
+      allTransactionsSnapshot.docs.forEach(docSnapshot => {
+        const t = docSnapshot.data();
+        const createdAt = t.created_at?.toDate?.() || new Date(t.created_at);
+        
+        if (createdAt >= today) {
+          todayTransactions++;
+          
+          if (t.type === 'vente' && t.status === 'completed') {
+            todayRevenue += Number(t.amount);
+          }
+          
+          if (t.type === 'recharge' && t.status === 'completed') {
+            todayRecharges += Number(t.amount);
+          }
+        }
+      });
+
       setStats({
         totalSales,
         totalBalance,
@@ -91,6 +117,7 @@ export const useStats = () => {
         todayRecharges
       });
     } catch (err) {
+      console.error('Error loading stats:', err);
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement des statistiques');
     } finally {
       setLoading(false);
@@ -100,65 +127,26 @@ export const useStats = () => {
   // Fonction pour charger les activités récentes
   const loadRecentActivity = async () => {
     try {
-      // TODO: Remplacer par l'appel Supabase
-      // const { data, error } = await supabase
-      //   .from('transactions')
-      //   .select(`
-      //     *,
-      //     agents:agent_id (name),
-      //     participants:participant_id (name),
-      //     products:product_id (name)
-      //   `)
-      //   .order('created_at', { ascending: false })
-      //   .limit(4);
-      
-      // if (error) throw error;
-      
-      // const activities: RecentActivity[] = data?.map(transaction => ({
-      //   time: formatTimeAgo(transaction.created_at),
-      //   action: transaction.type === 'vente' 
-      //     ? `Vente - ${transaction.products?.name || 'Produit'}`
-      //     : `Recharge de ${transaction.amount.toLocaleString()} XAF`,
-      //   user: transaction.agents?.name || 'Agent',
-      //   id: transaction.id
-      // })) || [];
-      
-      // setRecentActivity(activities);
-      
-      // Pour l'instant, on laisse le tableau vide
+      // For now, leave activity empty
+      // In a real implementation, you'd query recent transactions and format them
       setRecentActivity([]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors du chargement des activités récentes');
+      console.error('Error loading recent activity:', err);
     }
-  };
-
-  // Fonction utilitaire pour formater le temps écoulé
-  const formatTimeAgo = (dateString: string): string => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return "À l'instant";
-    if (diffInMinutes < 60) return `Il y a ${diffInMinutes} min`;
-    
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `Il y a ${diffInHours}h`;
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    return `Il y a ${diffInDays} jour${diffInDays > 1 ? 's' : ''}`;
   };
 
   useEffect(() => {
     loadStats();
     loadRecentActivity();
     
-    // Recharger les stats toutes les 30 secondes
+    // Reload stats every 30 seconds
     const interval = setInterval(() => {
       loadStats();
       loadRecentActivity();
     }, 30000);
     
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {

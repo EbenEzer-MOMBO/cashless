@@ -1,30 +1,23 @@
-
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   TrendingUp, 
   Package, 
-  Users, 
   CalendarDays,
   ShoppingCart,
   DollarSign,
-  Clock,
   Target,
   User,
   LogOut,
-  History,
-  Plus
+  History
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAgentProducts } from "@/hooks/useAgentProducts";
 import { useAgentStats } from "@/hooks/useAgentStats";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useAgentAuth } from "@/contexts/AgentAuthContext";
-import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 
 const VenteDashboard = () => {
   const navigate = useNavigate();
@@ -32,9 +25,6 @@ const VenteDashboard = () => {
   const { products, loading: productsLoading } = useAgentProducts();
   const { stats, loading: statsLoading } = useAgentStats();
   const { transactions, loading: transactionsLoading } = useTransactions('current');
-  const { toast } = useToast();
-  const [eventName, setEventName] = useState<string>("");
-
   // Filter only sales transactions
   const salesTransactions = transactions.filter(t => t.type === 'vente');
   const recentSales = salesTransactions.slice(0, 4);
@@ -43,26 +33,8 @@ const VenteDashboard = () => {
   const availableProducts = products.filter(p => p.stock > 0).length;
   const outOfStockProducts = products.filter(p => p.stock === 0).length;
 
-  // Get event name
-  useEffect(() => {
-    if (user?.eventId) {
-      const fetchEventName = async () => {
-        try {
-          const { data, error } = await supabase
-            .from('events')
-            .select('name')
-            .eq('id', user.eventId)
-            .single();
-          
-          if (error) throw error;
-          setEventName(data?.name || "");
-        } catch (err) {
-          console.error('Error fetching event name:', err);
-        }
-      };
-      fetchEventName();
-    }
-  }, [user?.eventId]);
+  // Use event name from user context (already loaded)
+  const eventName = user?.eventName || "";
 
   const handleLogout = () => {
     logout();
@@ -93,32 +65,63 @@ const VenteDashboard = () => {
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Fixed Header */}
       <header className="shrink-0 w-full bg-primary text-primary-foreground py-3 sm:py-4 safe-area-top z-10">
-        <div className="container mx-auto px-4 sm:px-6 flex items-center justify-between">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl font-bold truncate">Dashboard Agent Vente</h1>
-            <p className="text-primary-foreground/80 text-xs sm:text-sm truncate">
-              Bienvenue, {user?.name || "Agent"}
-            </p>
-            {eventName && (
-              <div className="flex items-center gap-1 text-primary-foreground/60 text-xs">
-                <CalendarDays className="w-3 h-3" />
-                <span>Événement: {eventName}</span>
-              </div>
-            )}
+        {/* Mobile Header */}
+        <div className="sm:hidden px-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-bold truncate">Ventes</h1>
+              <p className="text-primary-foreground/90 text-sm truncate mt-0.5">
+                {user?.name || "Agent"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={handleLogout}
+                className="text-primary-foreground hover:bg-primary-foreground/20 h-9 w-9 rounded-full"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <Button 
-              variant="ghost" 
-              onClick={handleLogout}
-              className="text-primary-foreground hover:bg-primary-foreground/10 p-2 sm:px-3 sm:py-2 flex-shrink-0"
-            >
-              <LogOut className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Déconnexion</span>
-            </Button>
+          {eventName && (
+            <div className="flex items-center gap-1.5 text-primary-foreground/80 text-xs bg-primary-foreground/10 px-2 py-1 rounded-full w-fit">
+              <CalendarDays className="w-3 h-3" />
+              <span className="truncate max-w-[200px]">{eventName}</span>
+            </div>
+          )}
+        </div>
+        {/* Desktop Header */}
+        <div className="hidden sm:block container mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl font-bold truncate">Dashboard Agent Vente</h1>
+              <p className="text-primary-foreground/80 text-xs sm:text-sm truncate">
+                Bienvenue, {user?.name || "Agent"}
+              </p>
+              {eventName && (
+                <div className="flex items-center gap-1 text-primary-foreground/60 text-xs">
+                  <CalendarDays className="w-3 h-3" />
+                  <span>Événement: {eventName}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Button 
+                variant="ghost" 
+                onClick={handleLogout}
+                className="text-primary-foreground hover:bg-primary-foreground/10 p-2 sm:px-3 sm:py-2 flex-shrink-0"
+              >
+                <LogOut className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Déconnexion</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -129,8 +132,55 @@ const VenteDashboard = () => {
         <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
 
           {/* Statistiques */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-            <Card className="card-banking">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+            {/* Mobile: Gradient Cards */}
+            <div className="sm:hidden bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-4 shadow-lg shadow-green-500/20">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-green-50/90 text-xs font-medium">Total ventes</p>
+                <TrendingUp className="h-4 w-4 text-green-50" />
+              </div>
+              <p className="text-2xl font-bold text-white mb-1">
+                {statsLoading ? "..." : (stats.totalSales / 1000).toFixed(0) + "k"}
+              </p>
+              <p className="text-green-50/80 text-xs">
+                {statsLoading ? "..." : stats.salesCount} vente{stats.salesCount > 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="sm:hidden bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 shadow-lg shadow-blue-500/20">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-blue-50/90 text-xs font-medium">Aujourd'hui</p>
+                <CalendarDays className="h-4 w-4 text-blue-50" />
+              </div>
+              <p className="text-2xl font-bold text-white mb-1">
+                {statsLoading ? "..." : (stats.todaySales / 1000).toFixed(0) + "k"}
+              </p>
+              <p className="text-blue-50/80 text-xs">XAF vendus</p>
+            </div>
+            <div className="sm:hidden bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 shadow-lg shadow-purple-500/20">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-purple-50/90 text-xs font-medium">Disponibles</p>
+                <Package className="h-4 w-4 text-purple-50" />
+              </div>
+              <p className="text-2xl font-bold text-white mb-1">
+                {productsLoading ? "..." : availableProducts}
+              </p>
+              <p className="text-purple-50/80 text-xs">
+                {outOfStockProducts} en rupture
+              </p>
+            </div>
+            <div className="sm:hidden bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 shadow-lg shadow-orange-500/20">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-orange-50/90 text-xs font-medium">Assignés</p>
+                <Target className="h-4 w-4 text-orange-50" />
+              </div>
+              <p className="text-2xl font-bold text-white mb-1">
+                {productsLoading ? "..." : products.length}
+              </p>
+              <p className="text-orange-50/80 text-xs">Total produits</p>
+            </div>
+
+            {/* Desktop: Classic Cards */}
+            <Card className="hidden sm:block card-banking">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 mobile-card">
                 <CardTitle className="text-xs sm:text-sm font-medium">Ventes totales</CardTitle>
                 <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
@@ -145,7 +195,7 @@ const VenteDashboard = () => {
               </CardContent>
             </Card>
 
-            <Card className="card-banking">
+            <Card className="hidden sm:block card-banking">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 mobile-card">
                 <CardTitle className="text-xs sm:text-sm font-medium">Aujourd'hui</CardTitle>
                 <CalendarDays className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
@@ -158,7 +208,7 @@ const VenteDashboard = () => {
               </CardContent>
             </Card>
 
-            <Card className="card-banking">
+            <Card className="hidden sm:block card-banking">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 mobile-card">
                 <CardTitle className="text-xs sm:text-sm font-medium">Produits disponibles</CardTitle>
                 <Package className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
@@ -173,7 +223,7 @@ const VenteDashboard = () => {
               </CardContent>
             </Card>
 
-            <Card className="card-banking">
+            <Card className="hidden sm:block card-banking">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 mobile-card">
                 <CardTitle className="text-xs sm:text-sm font-medium">Produits assignés</CardTitle>
                 <Target className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
@@ -191,8 +241,28 @@ const VenteDashboard = () => {
 
           {/* Actions rapides */}
           <div>
-            <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold mb-3 sm:mb-4 lg:mb-6">Actions rapides</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+            <h2 className="text-base sm:text-lg sm:text-xl lg:text-2xl font-semibold mb-3 sm:mb-4 lg:mb-6 text-foreground">Actions rapides</h2>
+            {/* Mobile: Gradient Buttons */}
+            <div className="grid grid-cols-2 sm:hidden gap-3">
+              {quickActions.map((action, index) => {
+                const IconComponent = action.icon;
+                return (
+                  <button
+                    key={index}
+                    onClick={action.action}
+                    className={`${action.color} rounded-2xl p-5 shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 flex flex-col items-center justify-center min-h-[120px] text-white`}
+                  >
+                    <div className="bg-white/20 rounded-full p-3 mb-3">
+                      <IconComponent className="w-6 h-6" />
+                    </div>
+                    <p className="font-bold text-sm mb-1">{action.title}</p>
+                    <p className="text-white/80 text-xs text-center">{action.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Desktop: Classic Cards */}
+            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
               {quickActions.map((action, index) => {
                 const IconComponent = action.icon;
                 return (
@@ -248,7 +318,7 @@ const VenteDashboard = () => {
                         <div key={index} className="flex items-center justify-between p-2 sm:p-3 bg-muted rounded-lg">
                           <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
                             <div className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-green-100">
-                              <Plus className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 text-green-600" />
+                              <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 text-green-600" />
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-xs sm:text-sm lg:text-base truncate">

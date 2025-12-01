@@ -347,6 +347,11 @@ const HistoriqueVente = () => {
                         </div>
                         <p className="mobile-text text-muted-foreground truncate mb-1">
                           {transaction.productName || 'Produit non spécifié'}
+                          {transaction.quantity && transaction.quantity > 1 && (
+                            <span className="text-xs text-muted-foreground ml-1">
+                              (×{transaction.quantity})
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {format(parseISO(transaction.createdAt), 'dd MMM yyyy à HH:mm', { locale: fr })} • ID: {transaction.id.slice(0, 8)}

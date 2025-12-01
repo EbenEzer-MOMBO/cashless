@@ -8,6 +8,15 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      // Proxy pour contourner CORS en développement
+      '/api/eventime': {
+        target: 'https://eventime.ga',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/eventime/, '/api/cashless'),
+        secure: true,
+      },
+    },
   },
   plugins: [
     react(),

@@ -74,12 +74,11 @@ Deux types d'agents avec des interfaces dédiées :
 - **Recharts** - Graphiques et statistiques
 
 ### Backend
-- **Supabase** - Backend as a Service
-  - Base de données PostgreSQL
-  - Authentification
-  - Edge Functions
-  - Real-time subscriptions
-  - Storage
+- **Firebase** - Backend as a Service
+  - Cloud Firestore (base de données NoSQL)
+  - Firebase Authentication
+  - Real-time listeners
+  - Cloud Storage
 
 ### Mobile
 - **Capacitor 7.4** - Déploiement iOS et Android
@@ -95,7 +94,7 @@ Deux types d'agents avec des interfaces dédiées :
 
 - **Node.js** >= 18.0.0
 - **npm** ou **bun**
-- Compte **Supabase** (pour le backend)
+- Compte **Firebase** (pour le backend)
 - (Optionnel) **Android Studio** / **Xcode** pour le développement mobile
 
 ## 🚀 Installation
@@ -117,30 +116,23 @@ bun install
 
 ### 3. Configuration de l'environnement
 
-Créer un fichier `.env` à la racine du projet :
+Créer un fichier `.env` à la racine du projet avec vos clés Firebase :
 
 ```env
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
 ```
 
-### 4. Configuration Supabase
+### 4. Configuration Firebase
 
-Appliquer les migrations de base de données :
-
-```bash
-# Installer la CLI Supabase
-npm install -g supabase
-
-# Se connecter à Supabase
-supabase login
-
-# Lier le projet
-supabase link --project-ref your-project-ref
-
-# Appliquer les migrations
-supabase db push
-```
+1. Créer un projet sur [Firebase Console](https://console.firebase.google.com/)
+2. Activer Authentication (Email/Password)
+3. Créer une base de données Firestore
+4. Copier les clés de configuration dans le fichier `.env`
 
 ### 5. Lancer l'application en développement
 
@@ -184,7 +176,7 @@ cashless/
 │   ├── contexts/        # Contextes React (Auth)
 │   ├── hooks/           # Hooks personnalisés
 │   ├── integrations/    # Intégrations externes
-│   │   └── supabase/    # Client et types Supabase
+│   │   └── firebase/    # Configuration et types Firebase
 │   ├── lib/             # Utilitaires
 │   ├── pages/           # Pages de l'application
 │   │   ├── admin/       # Pages admin
@@ -192,9 +184,6 @@ cashless/
 │   │   └── participant/ # Pages participant
 │   ├── App.tsx          # Composant racine
 │   └── main.tsx         # Point d'entrée
-├── supabase/
-│   ├── functions/       # Edge Functions
-│   └── migrations/      # Migrations SQL
 └── package.json
 ```
 

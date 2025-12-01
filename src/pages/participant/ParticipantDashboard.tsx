@@ -13,13 +13,14 @@ import {
   Euro,
   Calendar,
   Mail,
-  Phone,
   Smartphone,
   RotateCcw
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useParticipantAuth } from '@/contexts/ParticipantAuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/integrations/firebase/config';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
@@ -32,8 +33,8 @@ interface Transaction {
   amount: number;
   created_at: string;
   status: string;
-  product_id?: number;
-  agent_id?: number;
+  product_id?: string;
+  agent_id?: string;
   productName?: string;
   agentName?: string;
 }
@@ -58,45 +59,48 @@ const ParticipantDashboard = () => {
     if (!participant) return;
 
     try {
-      // Fetch transactions without embeds
-      const { data: transactionsData, error } = await supabase
-        .from('transactions')
-        .select('id, type, amount, created_at, status, product_id, agent_id')
-        .eq('participant_id', participant.id)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error('Error loading transactions:', error);
-        toast({
-          variant: "destructive",
-          title: "Erreur",
-          description: "Impossible de charger l'historique des transactions",
-        });
-        return;
-      }
-
-      // Fetch product names separately if we have product_ids
-      const productIds = [...new Set(transactionsData?.filter(t => t.product_id).map(t => t.product_id))];
-      let productsMap: Record<number, string> = {};
+      const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+      const q = query(
+        transactionsRef,
+        where('participant_id', '==', participant.id),
+        orderBy('created_at', 'desc'),
+        limit(20)
+      );
       
-      if (productIds.length > 0) {
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('id, name')
-          .in('id', productIds);
-        
-        productsMap = (productsData || []).reduce((acc, p) => {
-          acc[p.id] = p.name;
-          return acc;
-        }, {} as Record<number, string>);
-      }
+      const querySnapshot = await getDocs(q);
 
-      const formattedTransactions = (transactionsData || []).map((t: any) => ({
-        ...t,
-        productName: t.product_id ? productsMap[t.product_id] : undefined,
-        agentName: 'Agent' // Simple fallback since participants can't access agent names due to RLS
-      }));
+      // Collect product IDs
+      const productIds = new Set<string>();
+      querySnapshot.docs.forEach(docSnapshot => {
+        const t = docSnapshot.data();
+        if (t.product_id) productIds.add(t.product_id);
+      });
+
+      // Fetch product names
+      const productsMap: Record<string, string> = {};
+      await Promise.all(
+        Array.from(productIds).map(async (id) => {
+          const productDoc = await getDoc(doc(db, COLLECTIONS.PRODUCTS, id));
+          if (productDoc.exists()) {
+            productsMap[id] = productDoc.data().name;
+          }
+        })
+      );
+
+      const formattedTransactions: Transaction[] = querySnapshot.docs.map(docSnapshot => {
+        const t = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          type: t.type,
+          amount: Number(t.amount),
+          created_at: t.created_at?.toDate?.()?.toISOString() || t.created_at,
+          status: t.status,
+          product_id: t.product_id,
+          agent_id: t.agent_id,
+          productName: t.product_id ? productsMap[t.product_id] : undefined,
+          agentName: 'Agent'
+        };
+      });
       
       setTransactions(formattedTransactions);
     } catch (error) {

@@ -59,7 +59,7 @@ const OverviewSection = () => {
               <Activity className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <CardTitle className="mobile-text">Bienvenue sur le dashboard administrateur</CardTitle>
+              <CardTitle className="mobile-text">Bienvenue sur le tableau de bord organisateur</CardTitle>
               <CardDescription className="mobile-text mt-1">
                 Gérez vos événements, agents, produits et suivez les performances
               </CardDescription>

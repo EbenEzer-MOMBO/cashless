@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import { Calendar, Plus, Edit, Trash2, MapPin, Users, Package, Clock, Eye } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar, Plus, MapPin, Users, Package, Clock, Eye } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { useEvents, Event } from "@/hooks/useEvents";
 import { StatCard } from "./shared/StatCard";
 import { ResponsiveTable } from "./shared/ResponsiveTable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/config";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { COLLECTIONS } from "@/integrations/firebase/types";
+
 const EventsSection = () => {
   const { events, loading, error } = useEvents();
 
@@ -38,24 +41,31 @@ const EventsSection = () => {
   };
 
   // Lazy counts per event (avoid heavy queries)
-  const [counts, setCounts] = useState<Record<number, { participants: number; agents: number; products: number }>>({});
+  const [counts, setCounts] = useState<Record<string, { participants: number; agents: number; products: number }>>({});
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selected, setSelected] = useState<Event | null>(null);
 
-  const fetchCountsForEvent = async (eventId: number) => {
+  const fetchCountsForEvent = async (eventId: string) => {
     if (counts[eventId]) return counts[eventId];
-    const [pRes, aRes, prRes] = await Promise.all([
-      supabase.from('participants').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
-      supabase.from('agents').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
-      supabase.from('products').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
-    ]);
-    const newEntry = {
-      participants: pRes.count || 0,
-      agents: aRes.count || 0,
-      products: prRes.count || 0,
-    };
-    setCounts((prev) => ({ ...prev, [eventId]: newEntry }));
-    return newEntry;
+    
+    try {
+      const [participantsSnapshot, agentsSnapshot, productsSnapshot] = await Promise.all([
+        getDocs(query(collection(db, COLLECTIONS.PARTICIPANTS), where('event_id', '==', eventId))),
+        getDocs(query(collection(db, COLLECTIONS.AGENTS), where('event_id', '==', eventId))),
+        getDocs(query(collection(db, COLLECTIONS.PRODUCTS), where('event_id', '==', eventId)))
+      ]);
+      
+      const newEntry = {
+        participants: participantsSnapshot.size,
+        agents: agentsSnapshot.size,
+        products: productsSnapshot.size,
+      };
+      setCounts((prev) => ({ ...prev, [eventId]: newEntry }));
+      return newEntry;
+    } catch (error) {
+      console.error('Error fetching counts:', error);
+      return { participants: 0, agents: 0, products: 0 };
+    }
   };
 
   // Prefetch counts for listed events (best-effort)

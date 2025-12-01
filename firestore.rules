@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ULTRA-SIMPLE RULES FOR DEVELOPMENT
+    // Allow ALL authenticated users (including anonymous) to read/write ALL documents
+    // This is the most permissive rule - tighten security for production!
+    
+    // Match ALL documents in ALL collections
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+

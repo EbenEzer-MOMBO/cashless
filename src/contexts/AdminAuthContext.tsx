@@ -1,7 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
+import { eventimeAPI } from '@/integrations/eventime/api';
+import { auth } from '@/integrations/firebase/config';
+import { signInAnonymously, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
 
 export interface AdminUser {
   id: number;
@@ -12,8 +12,6 @@ export interface AdminUser {
 
 interface AdminAuthContextType {
   user: AdminUser | null;
-  supabaseUser: User | null;
-  supabaseSession: Session | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -37,107 +35,160 @@ interface AdminAuthProviderProps {
 
 export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AdminUser | null>(null);
-  const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
-  const [supabaseSession, setSupabaseSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [firebaseAuthReady, setFirebaseAuthReady] = useState(false);
 
   useEffect(() => {
-    // Set up Supabase auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('Auth state change:', event, session?.user?.id);
-        setSupabaseSession(session);
-        setSupabaseUser(session?.user ?? null);
+    // Listen for Firebase Auth state changes
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('🔄 Firebase Auth state changed:', firebaseUser ? {
+        uid: firebaseUser.uid,
+        isAnonymous: firebaseUser.isAnonymous
+      } : 'null');
+      
+      // Check for existing admin session in localStorage
+      const storedUser = localStorage.getItem('admin_user');
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          
+          // If admin is logged in but no Firebase Auth session exists, create anonymous session
+          if (!firebaseUser) {
+            console.log('🔄 Admin session found but no Firebase Auth session. Creating anonymous session...');
+            try {
+              const credential = await signInAnonymously(auth);
+              console.log('✅ Firebase Auth anonymous session created for existing admin:', {
+                uid: credential.user.uid,
+                isAnonymous: credential.user.isAnonymous
+              });
+              setFirebaseAuthReady(true);
+            } catch (error: any) {
+              console.error('❌ Failed to create Firebase Auth session for existing admin:', error);
+              if (error.code === 'auth/operation-not-allowed') {
+                console.error('⚠️ Anonymous authentication is not enabled in Firebase Console!');
+                console.error('⚠️ Please enable it in Firebase Console > Authentication > Sign-in method > Anonymous');
+              }
+              setFirebaseAuthReady(false);
+            }
+          } else {
+            console.log('✅ Firebase Auth session already exists:', firebaseUser.uid);
+            setFirebaseAuthReady(true);
+          }
+        } catch (error) {
+          console.error('Error parsing stored admin user:', error);
+          localStorage.removeItem('admin_user');
+          setFirebaseAuthReady(false);
+        }
+      } else {
+        setFirebaseAuthReady(true);
       }
-    );
-
-    // Check for existing Supabase session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Existing session:', session?.user?.id);
-      setSupabaseSession(session);
-      setSupabaseUser(session?.user ?? null);
+      
+      setIsLoading(false);
     });
 
-    // Vérifier si l'utilisateur admin est déjà connecté au chargement
-    const storedUser = localStorage.getItem('admin_user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch (error) {
-        localStorage.removeItem('admin_user');
-      }
-    }
-    setIsLoading(false);
-
-    return () => subscription.unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { data, error } = await supabase.functions.invoke('admin-login', {
-        body: { email, password }
-      });
+      setIsLoading(true);
+      console.log('🔐 Starting admin login process...');
+      
+      // Authenticate via Eventime API
+      const result = await eventimeAPI.adminLogin(email, password);
+      
+      console.log('📥 Login result received:', result);
 
-      if (error) {
-        console.error('Supabase function error:', error);
+      if (!result.status) {
+        const errorMsg = result.error || result.message || 'Identifiants incorrects';
+        console.error('❌ Login failed:', errorMsg);
         return { 
           success: false, 
-          error: 'Erreur de connexion. Vérifiez votre connexion internet.' 
+          error: errorMsg
         };
       }
 
-      if (data?.status === true && data?.user) {
-        const adminUser: AdminUser = {
-          id: data.user.id,
-          firstname: data.user.firstname,
-          lastname: data.user.lastname,
-          email: data.user.email,
+      if (!result.user) {
+        console.error('❌ Login failed: No user data in response');
+        return { 
+          success: false, 
+          error: 'Réponse invalide de l\'API. Aucune donnée utilisateur reçue.' 
         };
-        
-        setUser(adminUser);
-        localStorage.setItem('admin_user', JSON.stringify(adminUser));
-        
-        // If we have Supabase auth credentials, establish the session
-        if (data.supabase_auth?.email && data.supabase_auth?.password) {
-          try {
-            console.log('Signing in with Supabase credentials...');
-            const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-              email: data.supabase_auth.email,
-              password: data.supabase_auth.password,
-            });
-            
-            if (signInError) {
-              console.error('Error signing in with Supabase:', signInError);
-            } else {
-              console.log('Successfully signed in with Supabase:', authData.user?.id);
-            }
-          } catch (sessionError) {
-            console.error('Error establishing Supabase session:', sessionError);
-          }
+      }
+
+      const adminUser: AdminUser = {
+        id: result.user.id,
+        firstname: result.user.firstname,
+        lastname: result.user.lastname,
+        email: result.user.email,
+      };
+      
+      console.log('✅ Creating admin user object:', adminUser);
+      
+      // Create Firebase Auth anonymous session for Firestore access
+      try {
+        // Sign out any existing Firebase Auth session first
+        if (auth.currentUser) {
+          console.log('🔓 Signing out existing Firebase Auth session...');
+          await firebaseSignOut(auth);
+          // Wait a bit for sign out to complete
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
         
-        return { success: true };
-      } else {
-        return { 
-          success: false, 
-          error: data?.message || data?.error || 'Identifiants incorrects' 
-        };
+        // Sign in anonymously to get Firebase Auth token for Firestore
+        console.log('🔐 Creating Firebase Auth anonymous session...');
+        const anonymousCredential = await signInAnonymously(auth);
+        console.log('✅ Firebase Auth anonymous session created for admin:', {
+          uid: anonymousCredential.user.uid,
+          isAnonymous: anonymousCredential.user.isAnonymous,
+          email: anonymousCredential.user.email
+        });
+        
+        // Verify the session is active
+        if (auth.currentUser) {
+          console.log('✅ Firebase Auth session verified:', auth.currentUser.uid);
+        } else {
+          console.error('❌ Firebase Auth session not active after creation!');
+        }
+      } catch (firebaseAuthError: any) {
+        console.error('❌ Could not create Firebase Auth session for admin:', firebaseAuthError);
+        console.error('Error code:', firebaseAuthError.code);
+        console.error('Error message:', firebaseAuthError.message);
+        
+        // Show user-friendly error
+        if (firebaseAuthError.code === 'auth/operation-not-allowed') {
+          console.error('⚠️ Anonymous authentication is not enabled in Firebase Console!');
+          console.error('⚠️ Please enable it in Firebase Console > Authentication > Sign-in method > Anonymous');
+        }
+        
+        // Continue anyway, but Firestore access will likely fail
       }
-    } catch (error) {
+      
+      setUser(adminUser);
+      localStorage.setItem('admin_user', JSON.stringify(adminUser));
+      
+      console.log('✅ Admin authenticated successfully via Eventime API');
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ Login error:', error);
       return { 
         success: false, 
-        error: 'Erreur de connexion. Vérifiez votre connexion internet.' 
+        error: error.message || 'Erreur de connexion. Vérifiez votre connexion internet.' 
       };
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const logout = () => {
     setUser(null);
-    setSupabaseUser(null);
-    setSupabaseSession(null);
     localStorage.removeItem('admin_user');
-    supabase.auth.signOut();
+    // Sign out from Firebase Auth as well
+    firebaseSignOut(auth).catch(err => {
+      console.warn('Error signing out from Firebase Auth:', err);
+    });
   };
 
   const checkAuth = (): boolean => {
@@ -146,8 +197,6 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
   const value: AdminAuthContextType = {
     user,
-    supabaseUser,
-    supabaseSession,
     isAuthenticated: user !== null,
     isLoading,
     login,

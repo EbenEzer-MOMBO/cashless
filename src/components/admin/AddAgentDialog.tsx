@@ -5,7 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useEvents } from '@/hooks/useEvents';
-import { supabase } from '@/integrations/supabase/client';
+import { db, auth } from '@/integrations/firebase/config';
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Loader2 } from 'lucide-react';
 
@@ -98,31 +101,107 @@ export const AddAgentDialog: React.FC<AddAgentDialogProps> = ({ onAgentAdded }) 
     setLoading(true);
     
     try {
-      const selectedEventName = events.find((e) => e.id.toString() === formData.eventId)?.name;
-      const { data, error } = await supabase.functions.invoke('create-agent', {
-        body: {
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          role: formData.role,
-          eventId: parseInt(formData.eventId),
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          eventName: selectedEventName
+      console.log('🔐 Creating Firebase Auth user...', { email: formData.email });
+      
+      let userId: string;
+      
+      try {
+        // Try to create user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(
+          auth, 
+          formData.email, 
+          formData.password
+        );
+        
+        userId = userCredential.user.uid;
+        console.log('✅ Firebase Auth user created:', userId);
+      } catch (authError: any) {
+        console.error('❌ Firebase Auth error:', authError);
+        
+        // If Firebase Auth is not configured, generate a temporary user ID
+        if (authError.code === 'auth/configuration-not-found' || 
+            authError.code === 'auth/operation-not-allowed') {
+          
+          // Generate a unique ID for the agent (we'll use a hash of email + timestamp)
+          const timestamp = Date.now();
+          const emailHash = btoa(formData.email).replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+          userId = `agent_${emailHash}_${timestamp}`;
+          
+          console.warn('⚠️ Firebase Auth not configured, using temporary user ID:', userId);
+          console.warn('⚠️ Please enable Email/Password authentication in Firebase Console');
+          
+          toast({
+            variant: 'default',
+            title: 'Attention - Firebase Auth non configuré',
+            description: 'Activez Email/Password dans Firebase Console > Authentication > Sign-in method. L\'agent est créé avec un ID temporaire.',
+          });
+        } else {
+          throw authError; // Re-throw other auth errors
         }
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Erreur lors de la création de l\'agent');
       }
 
-      if (!data.success) {
-        throw new Error(data.error || 'Erreur lors de la création de l\'agent');
+      console.log('📝 Creating agent document in Firestore...', {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        event_id: formData.eventId,
+        user_id: userId
+      });
+
+      // Create agent document in Firestore
+      let agentDocRef;
+      try {
+        agentDocRef = await addDoc(collection(db, COLLECTIONS.AGENTS), {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          event_id: formData.eventId,
+          user_id: userId,
+          active: true,
+          password_changed: false,
+          temporary_password: formData.password,
+          total_sales: 0,
+          created_at: Timestamp.now(),
+          updated_at: Timestamp.now()
+        });
+
+        console.log('✅ Agent document created:', agentDocRef.id);
+      } catch (firestoreError: any) {
+        // Handle offline errors
+        if (firestoreError.code === 'unavailable' || 
+            firestoreError.message?.includes('offline') ||
+            firestoreError.message?.includes('network')) {
+          console.warn('⚠️ Firestore is offline. Document will be created when connection is restored.');
+          
+          // With offline persistence enabled, the document will be created when online
+          // But we should still show a warning to the user
+          toast({
+            variant: 'default',
+            title: 'Mode hors ligne',
+            description: 'L\'agent sera créé lorsque la connexion sera rétablie. Vérifiez votre connexion internet.',
+          });
+          
+          // Still reset form and close dialog as the operation will complete when online
+          setFormData({
+            name: '',
+            email: '',
+            password: '',
+            role: '',
+            eventId: '',
+            firstName: '',
+            lastName: ''
+          });
+          
+          setOpen(false);
+          onAgentAdded();
+          return;
+        }
+        throw firestoreError; // Re-throw other errors
       }
 
       toast({
         title: 'Succès',
-        description: 'Agent créé avec succès. Un email avec les informations de connexion a été envoyé.',
+        description: 'Agent créé avec succès.',
       });
 
       // Reset form
@@ -137,13 +216,43 @@ export const AddAgentDialog: React.FC<AddAgentDialogProps> = ({ onAgentAdded }) 
       });
 
       setOpen(false);
+      
+      // Call onAgentAdded immediately and also after a delay to ensure Firestore has processed the write
+      // The real-time listener will also pick up the change, but this ensures immediate refresh
       onAgentAdded();
+      setTimeout(() => {
+        onAgentAdded();
+      }, 1500);
     } catch (error: any) {
-      console.error('Error creating agent:', error);
+      console.error('❌ Error creating agent:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+      
+      let errorMessage = 'Erreur lors de la création de l\'agent';
+      
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Cet email est déjà utilisé';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Le mot de passe est trop faible (minimum 6 caractères)';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Format d\'email invalide';
+      } else if (error.code === 'permission-denied') {
+        errorMessage = 'Permission refusée. Vérifiez les règles de sécurité Firestore.';
+      } else if (error.code === 'auth/configuration-not-found') {
+        errorMessage = 'Firebase Authentication n\'est pas configuré. Activez Email/Password dans Firebase Console.';
+      } else if (error.code === 'unavailable' || error.message?.includes('offline')) {
+        errorMessage = 'Connexion internet requise. Vérifiez votre connexion et réessayez.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         variant: 'destructive',
         title: 'Erreur',
-        description: error.message || 'Erreur lors de la création de l\'agent',
+        description: errorMessage,
       });
     } finally {
       setLoading(false);

@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { User, Calendar, Wallet, CreditCard, Phone, Mail, Hash, QrCode, Activity } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/config";
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from "firebase/firestore";
+import { COLLECTIONS } from "@/integrations/firebase/types";
 import { Participant } from "@/hooks/useParticipants";
 
 interface ParticipantDetailDialogProps {
@@ -48,66 +50,80 @@ export const ParticipantDetailDialog = ({ participant, open, onOpenChange }: Par
     });
   };
 
-  const loadParticipantTransactions = async (participantId: number) => {
+  const loadParticipantTransactions = async (participantId: string) => {
     try {
       setLoadingTransactions(true);
       
-      const { data: transactionsData, error } = await supabase
-        .from('transactions')
-        .select(`
-          id,
-          type,
-          amount,
-          created_at,
-          status,
-          agent_id,
-          product_id
-        `)
-        .eq('participant_id', participantId)
-        .order('created_at', { ascending: false })
-        .limit(10);
+      const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+      const q = query(
+        transactionsRef,
+        where('participant_id', '==', participantId),
+        orderBy('created_at', 'desc'),
+        limit(10)
+      );
+      
+      const querySnapshot = await getDocs(q);
 
-      if (error) throw error;
+      if (querySnapshot.empty) {
+        setTransactions([]);
+        setStats({ totalTransactions: 0, totalSpent: 0, totalRecharged: 0 });
+        return;
+      }
 
-      if (transactionsData && transactionsData.length > 0) {
-        // Get agent and product names
-        const agentIds = [...new Set(transactionsData.map(t => t.agent_id).filter(Boolean))];
-        const productIds = [...new Set(transactionsData.map(t => t.product_id).filter(Boolean))];
+      // Collect agent and product IDs
+      const agentIds = new Set<string>();
+      const productIds = new Set<string>();
 
-        const [agentsRes, productsRes] = await Promise.all([
-          agentIds.length > 0 ? supabase.from('agents').select('id, name').in('id', agentIds) : { data: [] },
-          productIds.length > 0 ? supabase.from('products').select('id, name').in('id', productIds) : { data: [] }
-        ]);
+      querySnapshot.docs.forEach(docSnapshot => {
+        const t = docSnapshot.data();
+        if (t.agent_id) agentIds.add(t.agent_id);
+        if (t.product_id) productIds.add(t.product_id);
+      });
 
-        const agentsMap = (agentsRes.data || []).reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {} as Record<number, string>);
-        const productsMap = (productsRes.data || []).reduce((acc, p) => { acc[p.id] = p.name; return acc; }, {} as Record<number, string>);
+      // Fetch related data
+      const agentsMap: Record<string, string> = {};
+      const productsMap: Record<string, string> = {};
 
-        const formattedTransactions = transactionsData.map(t => ({
-          id: t.id,
+      await Promise.all([
+        ...Array.from(agentIds).map(async (id) => {
+          const docSnap = await getDoc(doc(db, COLLECTIONS.AGENTS, id));
+          if (docSnap.exists()) {
+            agentsMap[id] = docSnap.data().name;
+          }
+        }),
+        ...Array.from(productIds).map(async (id) => {
+          const docSnap = await getDoc(doc(db, COLLECTIONS.PRODUCTS, id));
+          if (docSnap.exists()) {
+            productsMap[id] = docSnap.data().name;
+          }
+        })
+      ]);
+
+      const formattedTransactions: ParticipantTransaction[] = querySnapshot.docs.map(docSnapshot => {
+        const t = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
           type: t.type,
           amount: Number(t.amount),
-          created_at: t.created_at,
+          created_at: t.created_at?.toDate?.()?.toISOString() || t.created_at,
           agent_name: t.agent_id ? agentsMap[t.agent_id] : undefined,
           product_name: t.product_id ? productsMap[t.product_id] : undefined,
           status: t.status
-        }));
+        };
+      });
 
-        setTransactions(formattedTransactions);
+      setTransactions(formattedTransactions);
 
-        // Calculate stats
-        const totalTransactions = formattedTransactions.length;
-        const totalSpent = formattedTransactions
-          .filter(t => t.type === 'vente')
-          .reduce((sum, t) => sum + t.amount, 0);
-        const totalRecharged = formattedTransactions
-          .filter(t => t.type === 'recharge')
-          .reduce((sum, t) => sum + t.amount, 0);
+      // Calculate stats
+      const totalTransactions = formattedTransactions.length;
+      const totalSpent = formattedTransactions
+        .filter(t => t.type === 'vente')
+        .reduce((sum, t) => sum + t.amount, 0);
+      const totalRecharged = formattedTransactions
+        .filter(t => t.type === 'recharge')
+        .reduce((sum, t) => sum + t.amount, 0);
 
-        setStats({ totalTransactions, totalSpent, totalRecharged });
-      } else {
-        setTransactions([]);
-        setStats({ totalTransactions: 0, totalSpent: 0, totalRecharged: 0 });
-      }
+      setStats({ totalTransactions, totalSpent, totalRecharged });
     } catch (error) {
       console.error('Error loading participant transactions:', error);
       setTransactions([]);
@@ -285,7 +301,7 @@ export const ParticipantDetailDialog = ({ participant, open, onOpenChange }: Par
                       {transactions.map((transaction) => (
                         <TableRow key={transaction.id}>
                           <TableCell>
-                            <Badge variant={getTypeVariant(transaction.type)}>
+                            <Badge variant={getTypeVariant(transaction.type) as any}>
                               {getTypeLabel(transaction.type)}
                             </Badge>
                           </TableCell>

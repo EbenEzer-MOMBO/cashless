@@ -58,44 +58,60 @@ export function AdminSidebar({ activeSection, onSectionChange }: AdminSidebarPro
   };
 
   return (
-    <Sidebar className={isCollapsed ? "w-14" : "w-64"} collapsible="icon">
-      {/* Header */}
-      <SidebarHeader className="border-b">
-        <div className="p-4">
+    <Sidebar className={`${isCollapsed ? "w-14" : "w-64"} md:w-64 border-r-2 border-border/50`} collapsible="icon" variant="sidebar">
+      {/* Header with modern design - Mobile optimized */}
+      <SidebarHeader className="border-b bg-gradient-to-br from-background via-background to-muted/20 safe-area-top">
+        <div className="p-3 sm:p-4">
           {!isCollapsed && (
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <LayoutDashboard className="h-4 w-4 text-primary-foreground" />
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 bg-primary/30 rounded-2xl blur-md"></div>
+                <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-lg border border-primary/20">
+                  <LayoutDashboard className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+                </div>
               </div>
-              <div>
-                <h2 className="font-semibold text-lg">Admin</h2>
-                <p className="text-xs text-muted-foreground">Dashboard</p>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-bold text-base sm:text-lg md:text-xl text-foreground leading-tight">Organisateur</h2>
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate mt-0.5">Tableau de bord</p>
               </div>
             </div>
           )}
           {isCollapsed && (
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mx-auto">
-              <LayoutDashboard className="h-4 w-4 text-primary-foreground" />
+            <div className="relative mx-auto">
+              <div className="absolute inset-0 bg-primary/30 rounded-2xl blur-md"></div>
+              <div className="relative w-10 h-10 bg-gradient-to-br from-primary via-primary/90 to-primary/80 rounded-2xl flex items-center justify-center shadow-lg border border-primary/20">
+                <LayoutDashboard className="h-5 w-5 text-primary-foreground" />
+              </div>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      {/* Content */}
-      <SidebarContent>
+      {/* Content - Mobile optimized */}
+      <SidebarContent className="overflow-y-auto overscroll-contain">
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="px-3 sm:px-4 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            Navigation
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1.5 sm:space-y-2 px-2 sm:px-3">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton 
                     isActive={activeSection === item.id}
-                    className="w-full justify-start"
+                    className={`w-full justify-start rounded-2xl transition-all duration-200 min-h-[44px] ${
+                      activeSection === item.id 
+                        ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/30 border border-primary/20' 
+                        : 'hover:bg-muted/60 active:scale-95 border border-transparent'
+                    }`}
                     onClick={() => onSectionChange(item.id)}
                   >
-                    <item.icon className="h-4 w-4" />
-                    {!isCollapsed && <span>{item.title}</span>}
+                    <item.icon className={`h-5 w-5 sm:h-5 sm:w-5 shrink-0 ${activeSection === item.id ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
+                    {!isCollapsed && (
+                      <span className={`text-sm sm:text-base font-semibold ml-3 ${activeSection === item.id ? 'text-primary-foreground' : 'text-foreground'}`}>
+                        {item.title}
+                      </span>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -104,20 +120,23 @@ export function AdminSidebar({ activeSection, onSectionChange }: AdminSidebarPro
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Footer */}
-      <SidebarFooter className="border-t">
-        <div className="p-4 space-y-3">
-          {/* User info */}
+      {/* Footer - Mobile optimized */}
+      <SidebarFooter className="border-t bg-muted/20">
+        <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
+          {/* User info with modern design */}
           {!isCollapsed && user && (
-            <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/50">
-              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                <User className="h-4 w-4 text-primary" />
+            <div className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-2.5 rounded-xl bg-gradient-to-br from-card to-muted/30 border border-border/50 shadow-sm">
+              <div className="relative shrink-0">
+                <div className="absolute inset-0 bg-primary/20 rounded-full blur-sm"></div>
+                <div className="relative w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-primary/20 to-primary/10 rounded-full flex items-center justify-center border border-primary/20">
+                  <User className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                </div>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
+                <p className="text-xs sm:text-sm font-semibold truncate text-foreground">
                   {user.firstname} {user.lastname}
                 </p>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                   {user.email}
                 </p>
               </div>
@@ -125,21 +144,24 @@ export function AdminSidebar({ activeSection, onSectionChange }: AdminSidebarPro
           )}
           
           {isCollapsed && user && (
-            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-              <User className="h-4 w-4 text-primary" />
+            <div className="relative mx-auto">
+              <div className="absolute inset-0 bg-primary/20 rounded-full blur-sm"></div>
+              <div className="relative w-9 h-9 bg-gradient-to-br from-primary/20 to-primary/10 rounded-full flex items-center justify-center border border-primary/20">
+                <User className="h-4 w-4 text-primary" />
+              </div>
             </div>
           )}
 
-          <Separator />
+          <Separator className="opacity-50" />
 
-          {/* Logout button */}
+          {/* Logout button - Mobile optimized */}
           <Button
             variant="ghost"
-            className={`${isCollapsed ? 'w-8 h-8 p-0' : 'w-full justify-start'} text-destructive hover:text-destructive hover:bg-destructive/10`}
+            className={`${isCollapsed ? 'w-9 h-9 p-0 mx-auto' : 'w-full justify-start'} text-destructive hover:text-destructive hover:bg-destructive/10 active:scale-95 transition-all rounded-xl`}
             onClick={handleLogout}
           >
-            <LogOut className="h-4 w-4" />
-            {!isCollapsed && <span className="ml-2">Déconnexion</span>}
+            <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
+            {!isCollapsed && <span className="ml-2 text-sm sm:text-base font-medium">Déconnexion</span>}
           </Button>
         </div>
       </SidebarFooter>

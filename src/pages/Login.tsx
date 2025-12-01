@@ -21,12 +21,12 @@ const Login = () => {
     action: () => navigate("/participant/login"),
     buttonText: "Connexion Participant"
   }, {
-    title: "Administrateur",
-    description: "Accès au dashboard de gestion de la plateforme",
+    title: "Organisateur",
+    description: "Accès au tableau de bord de gestion de la plateforme",
     icon: Settings,
     color: "bg-accent-foreground",
     action: () => navigate("/admin/login"),
-    buttonText: "Connexion Admin"
+    buttonText: "Connexion Organisateur"
   }];
   return <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}

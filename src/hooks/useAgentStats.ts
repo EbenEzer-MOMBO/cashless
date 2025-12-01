@@ -1,6 +1,13 @@
-
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/integrations/firebase/config';
+import { 
+  collection, 
+  query, 
+  where,
+  getDocs,
+  onSnapshot
+} from 'firebase/firestore';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import { useAgentAuth } from '@/contexts/AgentAuthContext';
 
 export interface AgentStats {
@@ -30,37 +37,39 @@ export const useAgentStats = () => {
     try {
       setLoading(true);
 
-      // Get today's date in UTC
+      // Get today's date
       const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      const todayISO = today.toISOString();
+      today.setHours(0, 0, 0, 0);
 
       // Get all sales for this agent
-      const { data: allSales, error: allSalesError } = await supabase
-        .from('transactions')
-        .select('amount, created_at')
-        .eq('agent_id', user.agentId)
-        .eq('type', 'vente')
-        .eq('status', 'completed');
+      const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+      const q = query(
+        transactionsRef,
+        where('agent_id', '==', user.agentId),
+        where('type', '==', 'vente'),
+        where('status', '==', 'completed')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      let totalSales = 0;
+      let todaySalesAmount = 0;
+      let salesCount = 0;
+      let todayCount = 0;
 
-      if (allSalesError) throw allSalesError;
-
-      // Get today's sales
-      const { data: todaySales, error: todayError } = await supabase
-        .from('transactions')
-        .select('amount, created_at')
-        .eq('agent_id', user.agentId)
-        .eq('type', 'vente')
-        .eq('status', 'completed')
-        .gte('created_at', todayISO);
-
-      if (todayError) throw todayError;
-
-      // Calculate statistics
-      const totalSales = (allSales || []).reduce((sum, t) => sum + Number(t.amount), 0);
-      const todaySalesAmount = (todaySales || []).reduce((sum, t) => sum + Number(t.amount), 0);
-      const salesCount = (allSales || []).length;
-      const todayCount = (todaySales || []).length;
+      querySnapshot.docs.forEach(docSnapshot => {
+        const t = docSnapshot.data();
+        const amount = Number(t.amount);
+        const createdAt = t.created_at?.toDate?.() || new Date(t.created_at);
+        
+        totalSales += amount;
+        salesCount++;
+        
+        if (createdAt >= today) {
+          todaySalesAmount += amount;
+          todayCount++;
+        }
+      });
 
       setStats({
         totalSales,
@@ -78,33 +87,28 @@ export const useAgentStats = () => {
 
   useEffect(() => {
     loadStats();
-  }, [user?.id]);
+  }, [user?.agentId]);
 
   // Subscribe to real-time changes
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.agentId) return;
 
-    const channel = supabase
-      .channel('agent-stats-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'transactions',
-          filter: `agent_id=eq.${user.agentId}`
-        },
-        () => {
-          console.log('New transaction, reloading stats...');
-          loadStats();
-        }
-      )
-      .subscribe();
+    const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+    const q = query(
+      transactionsRef,
+      where('agent_id', '==', user.agentId),
+      where('type', '==', 'vente')
+    );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
+    const unsubscribe = onSnapshot(q, () => {
+      console.log('New transaction, reloading stats...');
+      loadStats();
+    }, (err) => {
+      console.error('Error in stats subscription:', err);
+    });
+
+    return () => unsubscribe();
+  }, [user?.agentId]);
 
   return {
     stats,

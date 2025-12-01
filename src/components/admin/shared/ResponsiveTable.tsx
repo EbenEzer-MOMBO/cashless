@@ -56,7 +56,16 @@ export function ResponsiveTable({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  children
+                  <>
+                    {children}
+                    {!loading && count === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={headers.length} className="text-center py-8 mobile-text text-muted-foreground">
+                          {emptyMessage}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
                 )}
               </TableBody>
             </Table>
