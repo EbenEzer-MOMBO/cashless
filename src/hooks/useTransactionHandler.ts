@@ -100,7 +100,20 @@ export const useTransactionHandler = () => {
       }
 
       const participantData = participantDoc.data();
-      const currentBalance = Number(participantData.balance || 0);
+      
+      // S'assurer que le solde est bien un nombre
+      const rawBalance = participantData.balance;
+      const currentBalance = typeof rawBalance === 'number' ? rawBalance : Number(rawBalance || 0);
+      
+      console.log('💰 Current participant balance:', {
+        participantId: participantDoc.id,
+        participantName: participantData.name,
+        rawBalance: rawBalance,
+        rawBalanceType: typeof rawBalance,
+        currentBalance: currentBalance,
+        currentBalanceType: typeof currentBalance
+      });
+      
       let newBalance = currentBalance;
 
       // Calculate new balance based on transaction type
@@ -160,29 +173,56 @@ export const useTransactionHandler = () => {
       }
 
       // Update participant balance
-      console.log('📝 Updating participant balance in Firestore...');
+      console.log('📝 Updating participant balance in Firestore...', {
+        participantId: participantDoc.id,
+        currentBalance: currentBalance,
+        newBalance: newBalance,
+        transactionType: request.type,
+        amount: request.amount
+      });
+      
       const participantRef = doc(db, COLLECTIONS.PARTICIPANTS, participantDoc.id);
       
       // Vérifier le solde avant la mise à jour pour éviter les erreurs
       const beforeUpdateDoc = await getDoc(participantRef);
       const beforeUpdateBalance = beforeUpdateDoc.exists() ? Number(beforeUpdateDoc.data().balance || 0) : 0;
       
+      console.log('📊 Before update:', {
+        beforeUpdateBalance: beforeUpdateBalance,
+        expectedNewBalance: newBalance
+      });
+      
+      // S'assurer que newBalance est bien un nombre
+      const balanceToUpdate = typeof newBalance === 'number' ? newBalance : Number(newBalance);
+      
       await updateDoc(participantRef, {
-        balance: newBalance,
+        balance: balanceToUpdate,
         updated_at: Timestamp.now()
       });
       
+      console.log('✅ Balance update command sent to Firestore');
+      
       // Vérifier que la mise à jour a bien été effectuée
       const afterUpdateDoc = await getDoc(participantRef);
-      const afterUpdateBalance = afterUpdateDoc.exists() ? Number(afterUpdateDoc.data().balance || 0) : 0;
+      const afterUpdateData = afterUpdateDoc.exists() ? afterUpdateDoc.data() : null;
+      const afterUpdateBalance = afterUpdateData ? Number(afterUpdateData.balance || 0) : 0;
       
-      if (afterUpdateBalance !== newBalance) {
+      console.log('📊 After update:', {
+        afterUpdateBalance: afterUpdateBalance,
+        expectedBalance: balanceToUpdate,
+        balanceMatch: afterUpdateBalance === balanceToUpdate,
+        rawBalanceFromFirestore: afterUpdateData?.balance,
+        balanceType: typeof afterUpdateData?.balance
+      });
+      
+      if (Math.abs(afterUpdateBalance - balanceToUpdate) > 0.01) {
         console.error('❌ Balance mismatch after update!', {
-          expected: newBalance,
+          expected: balanceToUpdate,
           actual: afterUpdateBalance,
-          beforeUpdate: beforeUpdateBalance
+          beforeUpdate: beforeUpdateBalance,
+          difference: Math.abs(afterUpdateBalance - balanceToUpdate)
         });
-        throw new Error('Erreur lors de la mise à jour du solde');
+        throw new Error(`Erreur lors de la mise à jour du solde. Attendu: ${balanceToUpdate}, Obtenu: ${afterUpdateBalance}`);
       }
       
       console.log('✅ Participant balance updated successfully:', {
@@ -327,10 +367,23 @@ export const useTransactionHandler = () => {
       const participantDoc = querySnapshot.docs[0];
       const participantData = participantDoc.data();
 
+      // S'assurer que le solde est un nombre
+      const balance = Number(participantData.balance || 0);
+      
+      console.log('✅ Participant found:', {
+        id: participantDoc.id,
+        name: participantData.name,
+        balance: balance,
+        balanceType: typeof balance,
+        rawBalance: participantData.balance
+      });
+      
       return {
         id: participantDoc.id,
         name: participantData.name,
-        balance: participantData.balance,
+        balance: balance,
+        email: participantData.email || participantData.participant_email || '',
+        qr_code: participantData.qr_code || cleanedQrCode,
         status: participantData.status,
         event_id: participantData.event_id
       };

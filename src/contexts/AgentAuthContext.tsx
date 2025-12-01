@@ -116,6 +116,14 @@ export const AgentAuthProvider: React.FC<AgentAuthProviderProps> = ({ children }
       
       if (querySnapshot.empty) {
         console.warn('❌ No agent found for user:', userId);
+        
+        // Vérifier si l'utilisateur est un utilisateur anonyme (participant)
+        // Les utilisateurs anonymes ne devraient pas avoir de données d'agent
+        if (auth.currentUser?.isAnonymous) {
+          console.log('ℹ️ User is anonymous (participant), skipping agent data load');
+          return null;
+        }
+        
         console.warn('💡 Checking all agents in collection...');
         
         // Debug: Check all agents to see what user_ids exist
@@ -206,7 +214,60 @@ export const AgentAuthProvider: React.FC<AgentAuthProviderProps> = ({ children }
       setFirebaseUser(firebaseUser);
       
       if (firebaseUser) {
-        const agentData = await loadAgentData(firebaseUser.uid);
+        // Vérifier si l'utilisateur est anonyme (participant)
+        if (firebaseUser.isAnonymous) {
+          console.log('ℹ️ User is anonymous (participant), skipping agent data load');
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Vérifier si l'utilisateur a un email (les agents ont un email)
+        if (!firebaseUser.email) {
+          console.warn('⚠️ Firebase user has no email, might be anonymous or invalid');
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+        
+        let agentData = await loadAgentData(firebaseUser.uid);
+        
+        // Si l'agent n'est pas trouvé par user_id, essayer de le trouver par email
+        if (!agentData && firebaseUser.email) {
+          console.warn('⚠️ Agent not found by user_id, trying to find by email...', firebaseUser.email);
+          try {
+            const agentsRef = collection(db, COLLECTIONS.AGENTS);
+            const emailQuery = query(
+              agentsRef,
+              where('email', '==', firebaseUser.email)
+            );
+            
+            const emailSnapshot = await getDocs(emailQuery);
+            console.log(`📧 Found ${emailSnapshot.docs.length} agent(s) with email ${firebaseUser.email}`);
+            
+            if (!emailSnapshot.empty) {
+              const agentDoc = emailSnapshot.docs[0];
+              const agentDataFromEmail = agentDoc.data();
+              
+              // Update the agent document with the correct user_id
+              if (agentDataFromEmail.user_id !== firebaseUser.uid) {
+                console.log('🔄 Updating agent user_id to match Firebase Auth UID...');
+                const agentRef = doc(db, COLLECTIONS.AGENTS, agentDoc.id);
+                await updateDoc(agentRef, { 
+                  user_id: firebaseUser.uid,
+                  updated_at: Timestamp.now()
+                });
+                console.log('✅ Agent user_id updated');
+              }
+              
+              // Reload agent data
+              agentData = await loadAgentData(firebaseUser.uid);
+            }
+          } catch (emailSearchError) {
+            console.error('❌ Error searching agent by email:', emailSearchError);
+          }
+        }
+        
         console.log('Agent data loaded:', agentData);
         setUser(agentData);
       } else {

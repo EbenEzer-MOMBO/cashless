@@ -166,31 +166,61 @@ export const useParticipants = () => {
       const participantRef = doc(db, COLLECTIONS.PARTICIPANTS, participantId);
       const participantDoc = await getDoc(participantRef);
       
+      // Récupérer le solde existant si le participant existe déjà
+      const existingBalance = participantDoc.exists() 
+        ? Number(participantDoc.data().balance || 0) 
+        : 0;
+      
+      console.log('📊 Participant balance check:', {
+        participantId: participantId,
+        exists: participantDoc.exists(),
+        existingBalance: existingBalance,
+        existingBalanceType: typeof existingBalance
+      });
+      
       // Créer ou mettre à jour le participant dans Firestore
-      const participantData = {
+      // IMPORTANT: Ne pas écraser le solde existant lors du merge
+      const participantData: any = {
         id: ticket.ticket_item_id,
         name: participantName,
         email: ticket.participantEmailAddress || '',
-        balance: 0, // Le solde sera mis à jour lors des transactions
         event_id: ticket.event_id.toString(),
         qr_code: ticket.ticketNumber,
         ticket_number: ticket.ticketNumber,
         participant_telephone: ticket.participantTelephone || null,
         status: 'active',
-        created_at: participantDoc.exists() 
-          ? participantDoc.data().created_at 
-          : Timestamp.now(),
         updated_at: Timestamp.now(),
         last_sync: Timestamp.now()
       };
       
+      // Si le participant n'existe pas, initialiser le solde à 0
+      // Si le participant existe, préserver le solde existant
+      if (!participantDoc.exists()) {
+        participantData.balance = 0;
+        participantData.created_at = Timestamp.now();
+      } else {
+        // Ne pas inclure balance dans le merge pour préserver la valeur existante
+        // Le solde sera mis à jour uniquement par les transactions
+      }
+      
       await setDoc(participantRef, participantData, { merge: true });
+      
+      // Récupérer le solde final après le merge
+      const finalDoc = await getDoc(participantRef);
+      const finalBalance = finalDoc.exists() 
+        ? Number(finalDoc.data().balance || 0) 
+        : 0;
+      
+      console.log('✅ Participant saved with balance:', {
+        participantId: participantId,
+        finalBalance: finalBalance
+      });
       
       const participant: Participant = {
         id: participantId,
         name: participantName,
         email: ticket.participantEmailAddress || '',
-        balance: participantDoc.exists() ? (participantDoc.data().balance || 0) : 0,
+        balance: finalBalance,
         eventId: ticket.event_id.toString(),
         eventName: eventName,
         qrCode: ticket.ticketNumber,

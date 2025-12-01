@@ -81,9 +81,10 @@ export const ParticipantAuthProvider: React.FC<{ children: ReactNode }> = ({ chi
                   isAnonymous: credential.user.isAnonymous
                 });
                 setFirebaseAuthReady(true);
-              } catch (error: any) {
+              } catch (error: unknown) {
+                const authError = error as { code?: string; message?: string };
                 console.error('❌ Failed to create Firebase Auth session for participant:', error);
-                if (error.code === 'auth/operation-not-allowed') {
+                if (authError.code === 'auth/operation-not-allowed') {
                   console.error('⚠️ Anonymous authentication is not enabled in Firebase Console!');
                   console.error('⚠️ Please enable it in Firebase Console > Authentication > Sign-in method > Anonymous');
                 }
@@ -175,13 +176,14 @@ export const ParticipantAuthProvider: React.FC<{ children: ReactNode }> = ({ chi
         } else {
           console.error('❌ Firebase Auth session not active after creation!');
         }
-      } catch (firebaseAuthError: any) {
+      } catch (firebaseAuthError: unknown) {
+        const error = firebaseAuthError as { code?: string; message?: string };
         console.error('❌ Could not create Firebase Auth session for participant:', firebaseAuthError);
-        console.error('Error code:', firebaseAuthError.code);
-        console.error('Error message:', firebaseAuthError.message);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
         
         // Show user-friendly error
-        if (firebaseAuthError.code === 'auth/operation-not-allowed') {
+        if (error.code === 'auth/operation-not-allowed') {
           console.error('⚠️ Anonymous authentication is not enabled in Firebase Console!');
           console.error('⚠️ Please enable it in Firebase Console > Authentication > Sign-in method > Anonymous');
           throw new Error('Authentification anonyme non activée. Veuillez contacter l\'administrateur.');
@@ -202,18 +204,26 @@ export const ParticipantAuthProvider: React.FC<{ children: ReactNode }> = ({ chi
       try {
         const existingDoc = await getDoc(participantRef);
         if (existingDoc.exists()) {
-          existingBalance = existingDoc.data().balance || 0;
-          console.log('📊 Existing balance found:', existingBalance);
+          const existingData = existingDoc.data();
+          const rawBalance = existingData.balance;
+          existingBalance = typeof rawBalance === 'number' ? rawBalance : Number(rawBalance || 0);
+          console.log('📊 Existing balance found:', {
+            rawBalance: rawBalance,
+            existingBalance: existingBalance
+          });
         }
       } catch (e) {
         console.warn('⚠️ Could not check existing participant:', e);
       }
       
+      // Préserver le solde existant si le participant existe déjà
+      const balanceToSave = existingBalance > 0 ? existingBalance : (apiParticipant.balance || 0);
+      
       await setDoc(participantRef, {
         id: apiParticipant.id,
         name: apiParticipant.name,
         email: apiParticipant.email || '',
-        balance: existingBalance || apiParticipant.balance || 0, // Preserve existing balance
+        balance: balanceToSave, // Préserver le solde existant
         event_id: apiParticipant.event_id.toString(),
         qr_code: apiParticipant.qr_code,
         status: 'active',
@@ -221,13 +231,21 @@ export const ParticipantAuthProvider: React.FC<{ children: ReactNode }> = ({ chi
         updated_at: Timestamp.now()
       }, { merge: true });
       
-      console.log('✅ Participant saved to Firestore');
+      console.log('✅ Participant saved to Firestore with balance:', balanceToSave);
+
+      // Récupérer le solde final depuis Firestore pour s'assurer qu'il est correct
+      const finalDoc = await getDoc(participantRef);
+      const finalBalance = finalDoc.exists() 
+        ? (typeof finalDoc.data().balance === 'number' 
+            ? finalDoc.data().balance 
+            : Number(finalDoc.data().balance || 0))
+        : balanceToSave;
 
       const newParticipant: Participant = {
         id: participantId,
         name: apiParticipant.name,
         email: apiParticipant.email || '',
-        balance: apiParticipant.balance || 0,
+        balance: finalBalance,
         event_id: apiParticipant.event_id.toString(),
         qr_code: apiParticipant.qr_code
       };
@@ -281,32 +299,47 @@ export const ParticipantAuthProvider: React.FC<{ children: ReactNode }> = ({ chi
     if (!participant || !session) return;
 
     try {
-      console.log('Refreshing participant data for ID:', participant.id);
+      console.log('🔄 Refreshing participant data for ID:', participant.id);
       
       // Try to get from Firestore first (faster)
-      const participantDoc = await getDoc(doc(db, COLLECTIONS.PARTICIPANTS, participant.id));
+      const participantRef = doc(db, COLLECTIONS.PARTICIPANTS, participant.id);
+      const participantDoc = await getDoc(participantRef);
 
       if (participantDoc.exists()) {
         const data = participantDoc.data();
-        console.log('Updated participant balance:', data.balance);
+        
+        // S'assurer que le solde est bien un nombre
+        const rawBalance = data.balance;
+        const balance = typeof rawBalance === 'number' ? rawBalance : Number(rawBalance || 0);
+        
+        console.log('💰 Updated participant balance:', {
+          participantId: participant.id,
+          rawBalance: rawBalance,
+          rawBalanceType: typeof rawBalance,
+          balance: balance,
+          balanceType: typeof balance,
+          oldBalance: participant.balance
+        });
         
         const updatedParticipant: Participant = {
           ...participant,
-          name: data.name,
-          email: data.email || '',
-          balance: data.balance || 0,
-          event_id: data.event_id,
-          qr_code: data.qr_code
+          name: data.name || participant.name,
+          email: data.email || participant.email || '',
+          balance: balance,
+          event_id: data.event_id || participant.event_id,
+          qr_code: data.qr_code || participant.qr_code
         };
         
         setParticipant(updatedParticipant);
         localStorage.setItem(STORAGE_KEYS.PARTICIPANT, JSON.stringify(updatedParticipant));
+        
+        console.log('✅ Participant data refreshed successfully');
       } else {
         // If not in Firestore, could re-authenticate via Eventime API
-        console.warn('Participant not found in Firestore, may need to re-authenticate');
+        console.warn('⚠️ Participant not found in Firestore, may need to re-authenticate');
       }
     } catch (error) {
-      console.error('Error refreshing participant data:', error);
+      console.error('❌ Error refreshing participant data:', error);
     }
   };
 

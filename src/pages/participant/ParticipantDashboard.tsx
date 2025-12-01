@@ -19,7 +19,7 @@ import {
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useParticipantAuth } from '@/contexts/ParticipantAuthContext';
 import { db } from '@/integrations/firebase/config';
-import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { COLLECTIONS } from '@/integrations/firebase/types';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -52,7 +52,22 @@ const ParticipantDashboard = () => {
     if (participant) {
       loadTransactions();
       generateQRCode();
+      // Rafraîchir le solde du participant pour s'assurer qu'il est à jour
+      refreshParticipant();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [participant]);
+  
+  // Rafraîchir automatiquement le solde toutes les 5 secondes
+  useEffect(() => {
+    if (!participant) return;
+    
+    const interval = setInterval(() => {
+      refreshParticipant();
+    }, 5000); // Rafraîchir toutes les 5 secondes
+    
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participant]);
 
   const loadTransactions = async () => {
@@ -60,11 +75,11 @@ const ParticipantDashboard = () => {
 
     try {
       const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
+      // Retirer orderBy pour éviter l'erreur d'index composite
+      // On triera côté client
       const q = query(
         transactionsRef,
-        where('participant_id', '==', participant.id),
-        orderBy('created_at', 'desc'),
-        limit(20)
+        where('participant_id', '==', participant.id)
       );
       
       const querySnapshot = await getDocs(q);
@@ -102,7 +117,17 @@ const ParticipantDashboard = () => {
         };
       });
       
-      setTransactions(formattedTransactions);
+      // Trier côté client par date décroissante et limiter à 20
+      formattedTransactions.sort((a, b) => {
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
+        return dateB - dateA; // Décroissant
+      });
+      
+      // Limiter à 20 transactions
+      const limitedTransactions = formattedTransactions.slice(0, 20);
+      
+      setTransactions(limitedTransactions);
     } catch (error) {
       console.error('Error loading transactions:', error);
       toast({
