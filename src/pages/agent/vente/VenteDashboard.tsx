@@ -140,7 +140,7 @@ const VenteDashboard = () => {
                 <TrendingUp className="h-4 w-4 text-green-50" />
               </div>
               <p className="text-2xl font-bold text-white mb-1">
-                {statsLoading ? "..." : (stats.totalSales / 1000).toFixed(0) + "k"}
+                {statsLoading ? "..." : stats.totalSales.toLocaleString()}
               </p>
               <p className="text-green-50/80 text-xs">
                 {statsLoading ? "..." : stats.salesCount} vente{stats.salesCount > 1 ? 's' : ''}
@@ -152,7 +152,7 @@ const VenteDashboard = () => {
                 <CalendarDays className="h-4 w-4 text-blue-50" />
               </div>
               <p className="text-2xl font-bold text-white mb-1">
-                {statsLoading ? "..." : (stats.todaySales / 1000).toFixed(0) + "k"}
+                {statsLoading ? "..." : stats.todaySales.toLocaleString()}
               </p>
               <p className="text-blue-50/80 text-xs">XAF vendus</p>
             </div>

@@ -125,7 +125,7 @@ const RechargeDashboard = () => {
                 <Plus className="h-4 w-4 text-green-50" />
               </div>
               <p className="text-2xl font-bold text-white mb-1">
-                {statsLoading ? "..." : (stats.totalRecharged / 1000).toFixed(0) + "k"}
+                {statsLoading ? "..." : stats.totalRecharged.toLocaleString()}
               </p>
               <p className="text-green-50/80 text-xs">
                 {statsLoading ? "..." : stats.rechargeCount} recharges
@@ -137,7 +137,7 @@ const RechargeDashboard = () => {
                 <Minus className="h-4 w-4 text-red-50" />
               </div>
               <p className="text-2xl font-bold text-white mb-1">
-                {statsLoading ? "..." : (stats.totalRefunded / 1000).toFixed(0) + "k"}
+                {statsLoading ? "..." : stats.totalRefunded.toLocaleString()}
               </p>
               <p className="text-red-50/80 text-xs">
                 {statsLoading ? "..." : stats.refundCount} remboursements
@@ -149,7 +149,7 @@ const RechargeDashboard = () => {
                 <Battery className="h-4 w-4 text-blue-50" />
               </div>
               <p className="text-2xl font-bold text-white mb-1">
-                {statsLoading ? "..." : (stats.todayRecharged / 1000).toFixed(0) + "k"}
+                {statsLoading ? "..." : stats.todayRecharged.toLocaleString()}
               </p>
               <p className="text-blue-50/80 text-xs">XAF rechargé</p>
             </div>
@@ -159,7 +159,7 @@ const RechargeDashboard = () => {
                 <Battery className="h-4 w-4 text-orange-50" />
               </div>
               <p className="text-2xl font-bold text-white mb-1">
-                {statsLoading ? "..." : (stats.todayRefunded / 1000).toFixed(0) + "k"}
+                {statsLoading ? "..." : stats.todayRefunded.toLocaleString()}
               </p>
               <p className="text-orange-50/80 text-xs">XAF remboursé</p>
             </div>

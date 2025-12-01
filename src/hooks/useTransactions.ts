@@ -68,7 +68,7 @@ export const useTransactions = (agentFilter?: string) => {
       const querySnapshot = await getDocs(q);
       
       console.log(`✅ Found ${querySnapshot.docs.length} transactions for event`);
-      
+
       // Filter by agent if needed (client-side)
       let filteredDocs = querySnapshot.docs;
       if (agentFilter === 'current' && user.agentId) {
@@ -149,13 +149,13 @@ export const useTransactions = (agentFilter?: string) => {
         
         return {
           id: docSnapshot.id,
-          type: t.type,
-          amount: Number(t.amount),
+        type: t.type,
+        amount: Number(t.amount),
           participantName: participantsMap[t.participant_id] || t.participant_name || 'Participant inconnu',
           productName: productName,
           quantity: t.quantity ? Number(t.quantity) : undefined,
-          agentName: agentsMap[t.agent_id] || 'Agent',
-          status: t.status,
+        agentName: agentsMap[t.agent_id] || 'Agent',
+        status: t.status,
           createdAt: t.created_at?.toDate?.()?.toISOString() || t.created_at
         };
       });
@@ -168,7 +168,7 @@ export const useTransactions = (agentFilter?: string) => {
       if (error.code === 'permission-denied') {
         setError('Permission refusée. Vérifiez les règles de sécurité Firestore.');
       } else {
-        setError(err instanceof Error ? err.message : 'Erreur lors du chargement des transactions');
+      setError(err instanceof Error ? err.message : 'Erreur lors du chargement des transactions');
       }
       setTransactions([]);
     } finally {
@@ -193,7 +193,7 @@ export const useTransactions = (agentFilter?: string) => {
 
     const unsubscribe = onSnapshot(q, () => {
       console.log('🔄 New transaction detected, reloading...');
-      loadTransactions();
+          loadTransactions();
     }, (err) => {
       console.error('❌ Error in transactions subscription:', err);
     });
