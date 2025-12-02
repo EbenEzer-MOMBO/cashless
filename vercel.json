@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/eventime/:path*",
+      "destination": "https://eventime.ga/api/cashless/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/"
     }

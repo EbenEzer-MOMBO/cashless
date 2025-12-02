@@ -2,17 +2,13 @@
 // Ce service gère les appels à l'API Eventime externe
 
 // En développement, utiliser le proxy Vite pour contourner CORS
-// En production, utiliser l'URL directe
-const isDevelopment = import.meta.env.DEV;
-const EVENTIME_API_BASE_URL = isDevelopment 
-  ? '/api/eventime'  // Utilise le proxy Vite en développement
-  : (import.meta.env.VITE_EVENTIME_API_URL || 'https://eventime.ga/api/cashless');
+// En production, utiliser le proxy Vercel (même chemin que dev pour simplicité)
+const EVENTIME_API_BASE_URL = '/api/eventime';
 
 // Log the API URL on initialization (for debugging)
 if (typeof window !== 'undefined') {
   console.log('🌐 Eventime API Base URL:', EVENTIME_API_BASE_URL);
-  console.log('🌐 Environment:', isDevelopment ? 'Development (using proxy)' : 'Production');
-  console.log('🌐 Environment variable:', import.meta.env.VITE_EVENTIME_API_URL || 'Using default');
+  console.log('🌐 Using proxy (Vite in dev, Vercel in production)');
 }
 
 export interface EventimeEvent {
