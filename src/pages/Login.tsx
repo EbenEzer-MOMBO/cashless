@@ -1,11 +1,14 @@
-import { CreditCard, Users, Settings, Wallet } from "lucide-react";
+import { CreditCard, Users, Settings, Wallet, Calendar, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import cashlessLogo from "/lovable-uploads/5d1243b4-484d-4634-b7a8-1a57e94242be.png";
 import Footer from "@/components/shared/Footer";
+import { usePublicStats } from "@/hooks/usePublicStats";
+
 const Login = () => {
   const navigate = useNavigate();
+  const { stats, loading: statsLoading } = usePublicStats();
   const accessCards = [{
     title: "Agent",
     description: "Connexion pour les agents de recharge et de vente",
@@ -44,6 +47,70 @@ const Login = () => {
       {/* Main Content */}
       <main className="flex-1 container mx-auto px-4 sm:px-6 sm:py-12 py-[8px]">
         <div className="max-w-6xl mx-auto">
+          {/* Statistiques publiques */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+            <Card className="card-banking">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Événements</p>
+                    <p className="text-base sm:text-lg font-bold text-foreground">
+                      {statsLoading ? "..." : stats.totalEvents}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="card-banking">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="p-2 bg-green-500/10 rounded-lg">
+                    <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Actifs</p>
+                    <p className="text-base sm:text-lg font-bold text-foreground">
+                      {statsLoading ? "..." : stats.activeEvents}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="card-banking">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="p-2 bg-blue-500/10 rounded-lg">
+                    <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Participants</p>
+                    <p className="text-base sm:text-lg font-bold text-foreground">
+                      {statsLoading ? "..." : stats.totalParticipants.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="card-banking">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="p-2 bg-purple-500/10 rounded-lg">
+                    <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Transactions</p>
+                    <p className="text-base sm:text-lg font-bold text-foreground">
+                      {statsLoading ? "..." : stats.totalTransactions.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-3 sm:mb-4">
               Choisissez votre type d'accès

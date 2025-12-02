@@ -7,15 +7,41 @@ import { useStats } from "@/hooks/useStats";
 import { StatCard } from "./shared/StatCard";
 
 const OverviewSection = () => {
-  const { events } = useEvents();
-  const { agents } = useAgents();
-  const { products } = useAdminProducts();
-  const { stats } = useStats();
+  const { events = [], loading: eventsLoading, error: eventsError } = useEvents();
+  const { agents = [], loading: agentsLoading, error: agentsError } = useAgents();
+  const { products = [], loading: productsLoading, error: productsError } = useAdminProducts();
+  const { stats = { totalSales: 0 }, loading: statsLoading, error: statsError } = useStats();
 
-  const activeEvents = events.filter(event => event.status === 'active').length;
-  const activeAgents = agents.filter(agent => agent.active).length;
-  const activeProducts = products.filter(product => product.active).length;
-  const totalSales = stats.totalSales || 0;
+  // Valeurs par défaut pour éviter les erreurs
+  const activeEvents = Array.isArray(events) ? events.filter(event => event?.status === 'active').length : 0;
+  const activeAgents = Array.isArray(agents) ? agents.filter(agent => agent?.active).length : 0;
+  const activeProducts = Array.isArray(products) ? products.filter(product => product?.active).length : 0;
+  const totalSales = stats?.totalSales || 0;
+
+  // Afficher un message d'erreur si nécessaire
+  const hasError = eventsError || agentsError || productsError || statsError;
+  const isLoading = eventsLoading || agentsLoading || productsLoading || statsLoading;
+
+  // Gestion d'erreur pour éviter les pages noires
+  if (hasError && !isLoading) {
+    return (
+      <div className="space-y-4 sm:space-y-6 h-full flex flex-col items-center justify-center">
+        <Card className="card-banking max-w-md">
+          <CardHeader>
+            <CardTitle className="text-destructive">Erreur de chargement</CardTitle>
+            <CardDescription>
+              {eventsError || agentsError || productsError || statsError || 'Une erreur est survenue'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Veuillez rafraîchir la page ou contacter le support si le problème persiste.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6 h-full flex flex-col">
