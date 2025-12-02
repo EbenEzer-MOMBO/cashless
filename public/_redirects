@@ -1,1 +1,5 @@
+# Proxy pour l'API Eventime (contourne CORS)
+/api/eventime/*  https://eventime.ga/api/cashless/:splat  200
+
+# Redirection SPA - toutes les routes vers index.html
 /*    /index.html   200
