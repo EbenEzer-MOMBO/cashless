@@ -49,29 +49,36 @@ const ParticipantDashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (participant) {
+    if (participant && participant.id) {
       loadTransactions();
       generateQRCode();
       // Rafraîchir le solde du participant pour s'assurer qu'il est à jour
-      refreshParticipant();
+      refreshParticipant().catch(err => {
+        console.error('Error refreshing participant:', err);
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participant]);
+  }, [participant?.id]);
   
   // Rafraîchir automatiquement le solde toutes les 5 secondes
   useEffect(() => {
-    if (!participant) return;
+    if (!participant || !participant.id) return;
     
     const interval = setInterval(() => {
-      refreshParticipant();
+      refreshParticipant().catch(err => {
+        console.error('Error auto-refreshing participant:', err);
+      });
     }, 5000); // Rafraîchir toutes les 5 secondes
     
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participant]);
+  }, [participant?.id]);
 
   const loadTransactions = async () => {
-    if (!participant) return;
+    if (!participant || !participant.id) {
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const transactionsRef = collection(db, COLLECTIONS.TRANSACTIONS);
@@ -141,7 +148,7 @@ const ParticipantDashboard = () => {
   };
 
   const generateQRCode = async () => {
-    if (!participant) return;
+    if (!participant || !participant.qr_code) return;
 
     try {
       const qrData = participant.qr_code;
@@ -221,8 +228,22 @@ const ParticipantDashboard = () => {
   };
 
   if (!participant) {
-    return null;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Chargement de votre portefeuille...</p>
+        </div>
+      </div>
+    );
   }
+
+  // Valeurs par défaut pour éviter les erreurs
+  const participantBalance = participant?.balance ?? 0;
+  const participantName = participant?.name ?? 'Participant';
+  const participantEmail = participant?.email ?? '';
+  const participantEventId = participant?.event_id ?? '';
+  const participantQrCode = participant?.qr_code ?? '';
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -231,7 +252,7 @@ const ParticipantDashboard = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              Bonjour, {participant.name.split(' ')[0]} !
+              Bonjour, {participantName.split(' ')[0]} !
             </h1>
             <p className="text-muted-foreground">Gérez votre portefeuille numérique</p>
           </div>
@@ -261,7 +282,7 @@ const ParticipantDashboard = () => {
         </CardHeader>
         <CardContent>
           <div className="text-3xl font-bold text-white">
-            {formatAmount(participant.balance)}
+            {formatAmount(participantBalance)}
           </div>
           <p className="text-primary-foreground/80 text-sm mt-1 mb-4">
             Portefeuille numérique
@@ -292,17 +313,17 @@ const ParticipantDashboard = () => {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
                 <User className="w-4 h-4 text-muted-foreground" />
-                <span className="font-medium">{participant.name}</span>
+                <span className="font-medium">{participantName}</span>
               </div>
-              {participant.email && (
+              {participantEmail && (
                 <div className="flex items-center gap-2 text-sm">
                   <Mail className="w-4 h-4 text-muted-foreground" />
-                  <span>{participant.email}</span>
+                  <span>{participantEmail}</span>
                 </div>
               )}
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span>Événement #{participant.event_id}</span>
+                <span>Événement #{participantEventId}</span>
               </div>
             </div>
           </CardContent>
